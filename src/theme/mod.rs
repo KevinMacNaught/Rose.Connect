@@ -184,7 +184,7 @@ impl GlobalTheme {
         let gpui_theme = GpuiTheme::global_mut(cx);
         gpui_theme.mode = mode;
 
-        gpui_theme.background = hex_to_hsla(colors.background);
+        gpui_theme.background = hex_to_hsla(colors.element);
         gpui_theme.foreground = hex_to_hsla(colors.text);
         gpui_theme.muted = hex_to_hsla(colors.element);
         gpui_theme.muted_foreground = hex_to_hsla(colors.text_muted);

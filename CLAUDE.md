@@ -99,3 +99,5 @@ div().child(icon_sm("search", colors.text_muted))
 - Text truncation with ellipsis
 - PK indicators in column headers
 - See `docs/gpui-guide.md` § "Horizontal Scrolling" and "Column Resizing with Drag"
+
+**App shell pattern** - MainLayout provides persistent header/sidebar/footer. Apps render in content area without their own title bar padding. See `docs/macos-app-guide.md` § "App Shell Pattern".

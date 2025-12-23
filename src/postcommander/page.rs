@@ -710,7 +710,6 @@ impl Render for PostCommanderPage {
                             .when(!has_tabs, |el| el.child(self.render_empty_state(cx))),
                     ),
             )
-            .child(self.render_status_bar(cx))
             .when(show_dialog, |el| el.child(self.render_connection_dialog(cx)))
             .when(is_resizing, |el| el.child(self.render_resize_overlay(cx)))
             .when(is_resizing_editor, |el| el.child(self.render_editor_resize_overlay(cx)))

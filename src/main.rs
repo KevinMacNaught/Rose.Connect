@@ -94,6 +94,7 @@ fn main() {
                 traffic_light_position: Some(point(px(9.), px(9.))),
             }),
             window_bounds: Some(window_bounds),
+            window_background: WindowBackgroundAppearance::Opaque,
             ..Default::default()
         };
 

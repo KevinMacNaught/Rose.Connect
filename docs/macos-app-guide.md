@@ -21,8 +21,76 @@ let options = WindowOptions {
 };
 ```
 
-- Leave ~78px left padding in your custom header for traffic lights
+- Leave ~70px left padding in your custom header for traffic lights
 - The entire window content becomes your canvas when `appears_transparent: true`
+
+## App Shell Pattern
+
+For multi-view applications, use a persistent shell that provides consistent chrome across all views:
+
+```rust
+const TITLEBAR_HEIGHT: f32 = 36.0;
+const FOOTER_HEIGHT: f32 = 24.0;
+
+// Shell structure:
+// +----+-------------------------------------+
+// |    | HEADER (app title, actions)         |  <- shell_bg (element)
+// |icon+-------------------------------------+
+// |nav |                                     |
+// |    |     CONTENT AREA (apps render here) |  <- background
+// |    |                                     |
+// |    +-------------------------------------+
+// |    | FOOTER (status)                     |  <- shell_bg (element)
+// +----+-------------------------------------+
+
+div()
+    .size_full()
+    .flex()
+    .child(
+        // Icon sidebar - full height including title bar region
+        div()
+            .w(px(52.))
+            .h_full()
+            .bg(rgb(shell_bg))  // colors.element
+            .pt(px(TITLEBAR_HEIGHT))  // Push content below traffic lights
+            .children(nav_icons)
+    )
+    .child(
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .child(
+                // Header - needs left padding for traffic lights
+                div()
+                    .h(px(TITLEBAR_HEIGHT))
+                    .bg(rgb(shell_bg))
+                    .pl(px(70.))  // Clear traffic lights
+                    .child(app_title)
+            )
+            .child(
+                // Content area - apps render here
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .bg(rgb(background))
+                    .child(current_app)
+            )
+            .child(
+                // Footer
+                div()
+                    .h(px(FOOTER_HEIGHT))
+                    .bg(rgb(shell_bg))
+                    .child(status_text)
+            )
+    )
+```
+
+**Key points:**
+- Icon sidebar extends full height (including title bar region) with its own background
+- Header needs `pl(px(70.))` to clear traffic lights (they're positioned at 9,9)
+- Apps rendered in content area should NOT add their own title bar padding
+- Use `colors.element` for shell chrome, `colors.background` for content area
 
 ## Native Menu Bar
 

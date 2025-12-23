@@ -22,7 +22,7 @@ impl Render for IconsPage {
             .bg(rgb(colors.background))
             .child(
                 div()
-                    .pt(px(52.))
+                    .pt_4()
                     .px_6()
                     .pb_4()
                     .child(

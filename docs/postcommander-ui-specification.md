@@ -18,7 +18,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [x] ✅ Tabs bar for query tabs
 - [x] ✅ Query editor area
 - [x] ✅ Results area (below editor)
-- [x] ✅ Status bar at bottom
+- [x] ✅ Status bar at bottom (now provided by MainLayout shell)
 
 ### Sidebar Resizing
 - [x] ✅ Drag handle between sidebar and main area

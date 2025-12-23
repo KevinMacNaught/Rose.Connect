@@ -122,7 +122,7 @@ fn render_header(colors: &ThemeColors) -> impl IntoElement {
     ];
 
     div()
-        .pt(px(44.))
+        .pt_4()
         .px_6()
         .pb_4()
         .child(

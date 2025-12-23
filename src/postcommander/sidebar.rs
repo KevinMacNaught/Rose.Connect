@@ -73,7 +73,7 @@ impl PostCommanderPage {
         text_placeholder: u32,
     ) -> impl IntoElement {
         div()
-            .pt(px(36.))
+            .pt_3()
             .px_3()
             .pb_2()
             .child(
