@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__get-library-docs",
+      "Bash(cargo build:*)",
+      "WebFetch(domain:crates.io)",
+      "Bash(cargo fetch:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:zed.dev)",
+      "Bash(find:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(xargs:*)",
+      "Bash(for icon in alarm-clock alert-triangle at-sign award badge-check badge-dollar-sign bar-chart bar-chart-2 bookmark boxes braces brackets briefcase bug building building-2 calendar-check calendar-clock calendar-days calendar-plus calendar-range calendar-x camera check-circle chevron-up chevrons-down chevrons-left chevrons-right chevrons-up circle circle-dot clipboard-check clipboard-list clipboard-x clock-2 code contact credit-card database expand file-check file-x flag git-branch git-merge globe hammer handshake hard-drive hash heart help-circle history hourglass image key key-round layers layout-dashboard layout-grid loader-2 log-in log-out map map-pin maximize medal message-circle message-square milestone minimize moon network package package-check package-x panel-left panel-right paperclip phone phone-call pie-chart plug qr-code receipt repeat reply rotate-ccw ruler scale scan-barcode send server settings-2 share shield shield-alert shield-check shopping-bag shopping-cart shrink sidebar sliders sparkles square-check sun table table-2 target terminal thumbs-down thumbs-up timer trending-down trending-up truck unplug verified wallet warehouse wrench x-circle zap)",
+      "Bash(do curl -sL \"https://unpkg.com/lucide-static@latest/icons/$icon.svg\" -o \"$icon.svg\")",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
