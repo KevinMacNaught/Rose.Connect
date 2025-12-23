@@ -2,7 +2,8 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 use std::sync::Arc;
 
-use crate::postcommander::types::TableContext;
+use crate::icons::icon_sm;
+use crate::postcommander::types::{ForeignKeyInfo, TableContext};
 use crate::theme::ActiveTheme;
 
 const ROW_HEIGHT: f32 = 32.;
@@ -69,13 +70,43 @@ pub struct CellDoubleClicked {
     pub current_value: SharedString,
 }
 
+#[derive(Clone)]
+pub struct FkDataRequest {
+    pub fk_info: ForeignKeyInfo,
+    pub cell_value: SharedString,
+}
+
+#[derive(Clone)]
+pub struct FkHoverCardData {
+    pub fk_info: ForeignKeyInfo,
+    pub cell_value: SharedString,
+    pub row_index: usize,
+    pub col_index: usize,
+    pub referenced_row: Option<Vec<(String, String)>>,
+    pub is_loading: bool,
+    pub error: Option<String>,
+    pub drag_offset: Point<Pixels>,
+}
+
+#[derive(Clone)]
+struct DraggedFkCard;
+
+impl Render for DraggedFkCard {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
+}
+
 pub struct DataTableState {
     columns: Vec<DataTableColumn>,
     rows: Arc<Vec<Vec<SharedString>>>,
     table_context: Option<TableContext>,
     scroll_offset: Point<Pixels>,
     viewport_size: Size<Pixels>,
+    container_origin: Point<Pixels>,
     resize_drag: Option<ResizeDragState>,
+    pub active_fk_card: Option<FkHoverCardData>,
+    fk_card_drag_start: Option<Point<Pixels>>,
 }
 
 impl DataTableState {
@@ -89,7 +120,10 @@ impl DataTableState {
                 width: px(100.),
                 height: px(100.),
             },
+            container_origin: Point::default(),
             resize_drag: None,
+            active_fk_card: None,
+            fk_card_drag_start: None,
         }
     }
 
@@ -188,15 +222,86 @@ impl DataTableState {
         cx.notify();
     }
 
-    pub fn set_viewport_size(&mut self, size: Size<Pixels>, cx: &mut Context<Self>) {
-        if self.viewport_size != size {
-            self.viewport_size = size;
-            // Re-clamp scroll offset with new viewport size
-            let content_size = self.content_size();
-            let max_scroll_x = (content_size.width - size.width).max(px(0.));
-            let max_scroll_y = (content_size.height - size.height).max(px(0.));
-            self.scroll_offset.x = self.scroll_offset.x.clamp(px(0.), max_scroll_x);
-            self.scroll_offset.y = self.scroll_offset.y.clamp(px(0.), max_scroll_y);
+    pub fn set_container_origin(&mut self, origin: Point<Pixels>) {
+        self.container_origin = origin;
+    }
+
+    fn calculate_cell_position(&self, row_index: usize, col_index: usize) -> Point<Pixels> {
+        let col_x: Pixels = self.columns.iter().take(col_index).map(|c| c.width).sum();
+        let cell_x = col_x - self.scroll_offset.x;
+        let cell_y = px(HEADER_HEIGHT) + px(ROW_HEIGHT) * row_index as f32 - self.scroll_offset.y + px(ROW_HEIGHT);
+
+        point(
+            self.container_origin.x + cell_x,
+            self.container_origin.y + cell_y,
+        )
+    }
+
+    pub fn show_fk_card(
+        &mut self,
+        row_index: usize,
+        col_index: usize,
+        cell_value: SharedString,
+        fk_info: ForeignKeyInfo,
+        cx: &mut Context<Self>,
+    ) {
+        if cell_value.as_ref() == "NULL" {
+            return;
+        }
+
+        self.active_fk_card = Some(FkHoverCardData {
+            fk_info: fk_info.clone(),
+            cell_value: cell_value.clone(),
+            row_index,
+            col_index,
+            referenced_row: None,
+            is_loading: true,
+            error: None,
+            drag_offset: Point::default(),
+        });
+        self.fk_card_drag_start = None;
+
+        cx.emit(FkDataRequest {
+            fk_info,
+            cell_value,
+        });
+        cx.notify();
+    }
+
+    pub fn start_fk_card_drag(&mut self, position: Point<Pixels>) {
+        self.fk_card_drag_start = Some(position);
+    }
+
+    pub fn update_fk_card_drag(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        if let (Some(start), Some(ref mut card)) = (self.fk_card_drag_start, &mut self.active_fk_card) {
+            let delta = position - start;
+            card.drag_offset = card.drag_offset + delta;
+            self.fk_card_drag_start = Some(position);
+            cx.notify();
+        }
+    }
+
+    pub fn end_fk_card_drag(&mut self) {
+        self.fk_card_drag_start = None;
+    }
+
+    pub fn hide_fk_card(&mut self, cx: &mut Context<Self>) {
+        self.active_fk_card = None;
+        cx.notify();
+    }
+
+    pub fn set_fk_card_data(&mut self, data: Vec<(String, String)>, cx: &mut Context<Self>) {
+        if let Some(ref mut card) = self.active_fk_card {
+            card.referenced_row = Some(data);
+            card.is_loading = false;
+            cx.notify();
+        }
+    }
+
+    pub fn set_fk_card_error(&mut self, error: String, cx: &mut Context<Self>) {
+        if let Some(ref mut card) = self.active_fk_card {
+            card.is_loading = false;
+            card.error = Some(error);
             cx.notify();
         }
     }
@@ -204,6 +309,228 @@ impl DataTableState {
 
 impl EventEmitter<CellSaveRequested> for DataTableState {}
 impl EventEmitter<CellDoubleClicked> for DataTableState {}
+impl EventEmitter<FkDataRequest> for DataTableState {}
+
+fn render_fk_card(
+    card: &FkHoverCardData,
+    position: Point<Pixels>,
+    state: Entity<DataTableState>,
+    cx: &App,
+) -> impl IntoElement {
+    let theme = cx.theme();
+    let colors = theme.colors();
+    let surface = colors.surface;
+    let border = colors.border;
+    let text = colors.text;
+    let text_muted = colors.text_muted;
+    let accent = colors.accent;
+    let element_hover = colors.element_hover;
+
+    let table_name = card.fk_info.referenced_table.clone();
+    let fk_condition = format!(
+        "{} = {}",
+        card.fk_info.referenced_column, card.cell_value
+    );
+    let is_loading = card.is_loading;
+    let referenced_row = card.referenced_row.clone();
+    let error = card.error.clone();
+    let state_for_dismiss = state.clone();
+    let state_for_drag = state.clone();
+    let state_for_drag_end = state.clone();
+
+    let final_position = position + card.drag_offset;
+
+    deferred(
+        anchored()
+            .position(final_position)
+            .child(
+                div()
+                    .id("fk-card")
+                    .occlude()
+                    .w(px(320.))
+                    .max_h(px(400.))
+                    .bg(rgb(surface))
+                    .border_1()
+                    .border_color(rgb(border))
+                    .rounded_lg()
+                    .shadow_xl()
+                    .overflow_hidden()
+                    .on_mouse_down(MouseButton::Left, |_, _, _| {})
+                    .child(
+                        div()
+                            .id("fk-card-header")
+                            .px_3()
+                            .py_2()
+                            .border_b_1()
+                            .border_color(rgb(border))
+                            .flex()
+                            .justify_between()
+                            .items_center()
+                            .on_drag(DraggedFkCard, move |_, _, _, cx| {
+                                cx.new(|_| DraggedFkCard)
+                            })
+                            .on_drag_move::<DraggedFkCard>(move |event, _window, cx| {
+                                state_for_drag.update(cx, |state, cx| {
+                                    if state.fk_card_drag_start.is_none() {
+                                        state.start_fk_card_drag(event.event.position);
+                                    } else {
+                                        state.update_fk_card_drag(event.event.position, cx);
+                                    }
+                                });
+                            })
+                            .on_mouse_up(MouseButton::Left, move |_, _window, cx| {
+                                state_for_drag_end.update(cx, |state, _cx| {
+                                    state.end_fk_card_drag();
+                                });
+                            })
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_0p5()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(rgb(text))
+                                            .child(table_name),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(rgb(text_muted))
+                                            .child(fk_condition),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .id("fk-hover-close")
+                                            .p_1()
+                                            .rounded_md()
+                                            .cursor_pointer()
+                                            .hover(|s| s.bg(rgb(element_hover)))
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                move |_, _window, cx| {
+                                                    state_for_dismiss.update(cx, |state, cx| {
+                                                        state.hide_fk_card(cx);
+                                                    });
+                                                },
+                                            )
+                                            .child(icon_sm("x", text_muted)),
+                                    ),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("fk-hover-card-content")
+                            .p_2()
+                            .max_h(px(300.))
+                            .overflow_y_scroll()
+                            .child(if is_loading {
+                                div()
+                                    .py_4()
+                                    .flex()
+                                    .justify_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(rgb(text_muted))
+                                            .child("Loading..."),
+                                    )
+                                    .into_any_element()
+                            } else if let Some(err) = error {
+                                div()
+                                    .py_4()
+                                    .px_2()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(rgb(text_muted))
+                                            .child(format!("Error: {}", err)),
+                                    )
+                                    .into_any_element()
+                            } else if let Some(rows) = referenced_row {
+                                if rows.is_empty() {
+                                    div()
+                                        .py_4()
+                                        .flex()
+                                        .justify_center()
+                                        .child(
+                                            div()
+                                                .text_sm()
+                                                .text_color(rgb(text_muted))
+                                                .italic()
+                                                .child("Record not found"),
+                                        )
+                                        .into_any_element()
+                                } else {
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .children(rows.into_iter().map(|(col_name, value)| {
+                                            let is_null = value == "NULL";
+                                            div()
+                                                .flex()
+                                                .py_1()
+                                                .gap_2()
+                                                .child(
+                                                    div()
+                                                        .w(px(100.))
+                                                        .flex_shrink_0()
+                                                        .text_xs()
+                                                        .text_color(rgb(text_muted))
+                                                        .overflow_hidden()
+                                                        .whitespace_nowrap()
+                                                        .text_ellipsis()
+                                                        .child(col_name),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .flex_1()
+                                                        .text_xs()
+                                                        .font_family("monospace")
+                                                        .text_color(rgb(if is_null {
+                                                            text_muted
+                                                        } else {
+                                                            accent
+                                                        }))
+                                                        .when(is_null, |el| el.italic())
+                                                        .overflow_hidden()
+                                                        .whitespace_nowrap()
+                                                        .text_ellipsis()
+                                                        .child(if is_null {
+                                                            "NULL".to_string()
+                                                        } else {
+                                                            value
+                                                        }),
+                                                )
+                                        }))
+                                        .into_any_element()
+                                }
+                            } else {
+                                div()
+                                    .py_4()
+                                    .flex()
+                                    .justify_center()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(rgb(text_muted))
+                                            .italic()
+                                            .child("No data"),
+                                    )
+                                    .into_any_element()
+                            }),
+                    ),
+            ),
+    )
+    .with_priority(2)
+}
 
 #[derive(IntoElement)]
 pub struct DataTable {
@@ -365,6 +692,12 @@ impl RenderOnce for DataTable {
 
         let column_names: Vec<SharedString> = columns.iter().map(|c| c.name.clone()).collect();
 
+        let foreign_keys = state
+            .table_context
+            .as_ref()
+            .map(|ctx| ctx.foreign_keys.clone())
+            .unwrap_or_default();
+
         // Only render visible rows (virtualization)
         let visible_rows: Vec<_> = (first_visible_row..last_visible_row)
             .map(|row_ix| {
@@ -373,6 +706,7 @@ impl RenderOnce for DataTable {
                 let row_y = header_height + row_height * row_ix as f32 - scroll_offset.y;
                 let state_for_row = self.state.clone();
                 let column_names_for_row = column_names.clone();
+                let foreign_keys_for_row = foreign_keys.clone();
 
                 let col_widths_for_row = col_widths.clone();
 
@@ -399,6 +733,9 @@ impl RenderOnce for DataTable {
                             .unwrap_or_else(|| "".into());
                         let state_for_cell = state_for_row.clone();
 
+                        let fk_info = foreign_keys_for_row.get(column_name.as_ref()).cloned();
+                        let is_fk = fk_info.is_some();
+
                         div()
                             .id(ElementId::NamedInteger(
                                 format!("cell-{}", row_ix).into(),
@@ -423,18 +760,47 @@ impl RenderOnce for DataTable {
                                             current_value: cell_value.clone(),
                                         });
                                     });
+                                } else if event.click_count() == 1 {
+                                    if let Some(ref fk) = fk_info {
+                                        if !is_null {
+                                            state_for_cell.update(cx, |state, cx| {
+                                                state.show_fk_card(
+                                                    row_ix,
+                                                    col_ix,
+                                                    cell_value.clone(),
+                                                    fk.clone(),
+                                                    cx,
+                                                );
+                                            });
+                                        }
+                                    }
                                 }
                             })
                             .child(
                                 div()
-                                    .w_full()
-                                    .text_sm()
+                                    .flex()
+                                    .items_center()
+                                    .gap_1()
                                     .overflow_hidden()
-                                    .whitespace_nowrap()
-                                    .text_ellipsis()
-                                    .text_color(rgb(if is_null { text_muted } else { text }))
-                                    .when(is_null, |el| el.italic())
-                                    .child(if is_null { SharedString::from("—") } else { cell.clone() }),
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .overflow_hidden()
+                                            .whitespace_nowrap()
+                                            .text_ellipsis()
+                                            .text_color(rgb(if is_null {
+                                                text_muted
+                                            } else if is_fk {
+                                                accent
+                                            } else {
+                                                text
+                                            }))
+                                            .when(is_null, |el| el.italic())
+                                            .child(if is_null { SharedString::from("—") } else { cell.clone() }),
+                                    )
+                                    .when(is_fk && !is_null, |el| {
+                                        el.child(icon_sm("external-link", accent))
+                                    }),
                             )
                     }))
             })
@@ -442,6 +808,12 @@ impl RenderOnce for DataTable {
 
         let state_for_scroll = self.state.clone();
         let state_for_measure = self.state.clone();
+        let state_for_fk_card = self.state.clone();
+        let active_fk_card = state.active_fk_card.clone();
+
+        let fk_card_position = active_fk_card.as_ref().map(|card| {
+            state.calculate_cell_position(card.row_index, card.col_index)
+        });
 
         // Use a stacked layout: canvas measures bounds, then content is overlaid
         div()
@@ -452,8 +824,14 @@ impl RenderOnce for DataTable {
             .child(
                 canvas(
                     move |bounds, _window, cx| {
-                        state_for_measure.update(cx, |state, cx| {
-                            state.set_viewport_size(bounds.size, cx);
+                        state_for_measure.update(cx, |state, _cx| {
+                            state.set_container_origin(bounds.origin);
+                            state.viewport_size = bounds.size;
+                            let content_size = state.content_size();
+                            let max_scroll_x = (content_size.width - bounds.size.width).max(px(0.));
+                            let max_scroll_y = (content_size.height - bounds.size.height).max(px(0.));
+                            state.scroll_offset.x = state.scroll_offset.x.clamp(px(0.), max_scroll_x);
+                            state.scroll_offset.y = state.scroll_offset.y.clamp(px(0.), max_scroll_y);
                         });
                     },
                     |_, _, _, _| {},
@@ -480,5 +858,8 @@ impl RenderOnce for DataTable {
                             .child(header),
                     ),
             )
+            .when_some(active_fk_card.zip(fk_card_position), |el, (card, pos)| {
+                el.child(render_fk_card(&card, pos, state_for_fk_card, cx))
+            })
     }
 }

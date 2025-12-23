@@ -32,6 +32,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub);
         let sub2 = cx.subscribe(&table_state, Self::handle_cell_double_click);
         self._subscriptions.push(sub2);
+        let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
+        self._subscriptions.push(sub3);
 
         let tab = QueryTab {
             id: id.clone(),
@@ -79,6 +81,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub);
         let sub2 = cx.subscribe(&table_state, Self::handle_cell_double_click);
         self._subscriptions.push(sub2);
+        let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
+        self._subscriptions.push(sub3);
 
         let tab = QueryTab {
             id: id.clone(),

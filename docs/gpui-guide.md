@@ -1408,3 +1408,161 @@ impl Render for DraggedColumnResize {
 ### See Also
 
 - `src/components/data_table.rs` - Working column resize implementation
+
+## Draggable Popup Cards
+
+For popup cards that users can drag to reposition (like FK detail cards), combine `anchored()` positioning with drag tracking:
+
+### State Structure
+
+```rust
+#[derive(Clone)]
+pub struct PopupCardData {
+    pub row_index: usize,
+    pub col_index: usize,
+    pub drag_offset: Point<Pixels>,  // User's drag adjustment
+    // ... other data
+}
+
+pub struct MyComponent {
+    active_card: Option<PopupCardData>,
+    card_drag_start: Option<Point<Pixels>>,  // Track drag start position
+}
+```
+
+### Drag Marker (Required)
+
+GPUI's drag system requires the dragged value to implement `Render`:
+
+```rust
+#[derive(Clone)]
+struct DraggedCard;
+
+impl Render for DraggedCard {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        Empty  // No visual preview needed
+    }
+}
+```
+
+### Drag Methods
+
+```rust
+pub fn start_card_drag(&mut self, position: Point<Pixels>) {
+    self.card_drag_start = Some(position);
+}
+
+pub fn update_card_drag(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+    if let (Some(start), Some(ref mut card)) = (self.card_drag_start, &mut self.active_card) {
+        let delta = position - start;
+        card.drag_offset = card.drag_offset + delta;
+        self.card_drag_start = Some(position);  // Update for next delta
+        cx.notify();
+    }
+}
+
+pub fn end_card_drag(&mut self) {
+    self.card_drag_start = None;
+}
+```
+
+### Render with Drag Handlers
+
+```rust
+fn render_card(card: &PopupCardData, base_position: Point<Pixels>, state: Entity<MyComponent>) -> impl IntoElement {
+    let final_position = base_position + card.drag_offset;
+    let state_for_drag = state.clone();
+    let state_for_drag_end = state.clone();
+
+    deferred(
+        anchored()
+            .position(final_position)
+            // NOTE: Don't use .snap_to_window() with dragging - see gotcha below
+            .child(
+                div()
+                    .id("popup-card")
+                    .occlude()
+                    .child(
+                        // Draggable header
+                        div()
+                            .id("card-header")
+                            .on_drag(DraggedCard, move |_, _, _, cx| {
+                                cx.new(|_| DraggedCard)
+                            })
+                            .on_drag_move::<DraggedCard>(move |event, _window, cx| {
+                                state_for_drag.update(cx, |state, cx| {
+                                    if state.card_drag_start.is_none() {
+                                        state.start_card_drag(event.event.position);
+                                    } else {
+                                        state.update_card_drag(event.event.position, cx);
+                                    }
+                                });
+                            })
+                            .on_mouse_up(MouseButton::Left, move |_, _window, cx| {
+                                state_for_drag_end.update(cx, |state, _cx| {
+                                    state.end_card_drag();
+                                });
+                            })
+                            .child(/* header content */)
+                    )
+                    .child(/* card body */)
+            )
+    )
+    .with_priority(2)
+}
+```
+
+### Gotcha: snap_to_window() Breaks Drag Tracking
+
+**Do NOT use `.snap_to_window()` with draggable elements.**
+
+`snap_to_window()` automatically repositions elements to stay within the window bounds. However, drag tracking uses raw mouse coordinates. If a popup is snapped to a different position than calculated, the drag offset will be wrong:
+
+1. Card opens near bottom of window
+2. `snap_to_window()` moves it up to stay visible
+3. User starts dragging from the header
+4. Drag tracking records mouse position, but doesn't know about the snap
+5. Card jumps to wrong position
+
+**Solution**: Remove `snap_to_window()` and let users drag cards into view if they open off-screen.
+
+### Calculating Cell-Based Positions
+
+When a popup should appear relative to a table cell, calculate the position from row/col indices:
+
+```rust
+fn calculate_cell_position(&self, row_index: usize, col_index: usize) -> Point<Pixels> {
+    // Sum column widths up to target column
+    let col_x: Pixels = self.columns.iter().take(col_index).map(|c| c.width).sum();
+
+    // Cell position relative to scroll
+    let cell_x = col_x - self.scroll_offset.x;
+    let cell_y = px(HEADER_HEIGHT) + px(ROW_HEIGHT) * row_index as f32
+                 - self.scroll_offset.y + px(ROW_HEIGHT);  // Below the cell
+
+    // Add container's window position
+    point(
+        self.container_origin.x + cell_x,
+        self.container_origin.y + cell_y,
+    )
+}
+```
+
+Track `container_origin` using a canvas callback:
+
+```rust
+canvas(
+    move |bounds, _window, cx| {
+        state.update(cx, |state, _cx| {
+            state.container_origin = bounds.origin;
+        });
+    },
+    |_, _, _, _| {},
+)
+.absolute()
+.inset_0()
+```
+
+### See Also
+
+- `src/components/data_table.rs` - FK card implementation with dragging

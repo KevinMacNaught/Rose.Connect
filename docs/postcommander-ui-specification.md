@@ -171,7 +171,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [x] ✅ error
 - [x] ✅ is_loading
 - [ ] ⬜ connectionId
-- [ ] ⬜ tableContext.foreignKeys
+- [x] ✅ tableContext.foreignKeys
 - [ ] ⬜ autoExecute flag
 
 ### Tab Persistence
@@ -203,7 +203,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 ### Column Features
 - [x] ✅ Column resizing via drag handles
 - [x] ✅ Text truncation with ellipsis
-- [ ] ⬜ FK icon + light primary background for FK columns
+- [x] ✅ FK cells shown in accent color (cyan)
 - [ ] ⬜ Checkbox column for row selection
 
 ### Cell Display
@@ -222,7 +222,11 @@ This document tracks the implementation status of all PostCommander features. Ch
   - [ ] ⬜ Export as SQL INSERT
 
 ### Foreign Key Cells
-- [ ] ⬜ Show external link icon on hover
+- [x] ✅ FK cells shown in accent color
+- [x] ✅ Click on FK cell shows popup card with referenced record
+- [x] ✅ FK card shows table name, FK condition, and all fields
+- [x] ✅ FK card is draggable by header
+- [x] ✅ FK card has close button
 - [ ] ⬜ Click opens new tab with SELECT for referenced record
 
 ### Row Selection

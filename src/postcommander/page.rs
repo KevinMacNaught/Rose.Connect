@@ -1,4 +1,4 @@
-use crate::components::{DataTableColumn, TextInput};
+use crate::components::{DataTableColumn, DataTableState, FkDataRequest, TextInput};
 use crate::postcommander::database::{ConnectionConfig, DatabaseManager};
 use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TableContext};
 use crate::postcommander::ui_helpers::parse_table_from_select;
@@ -275,24 +275,40 @@ impl PostCommanderPage {
                             if let Some((schema, table)) = parsed_table.clone() {
                                 let tab_id_for_pk = tab_id_clone.clone();
                                 let pk_rx = db_manager.fetch_primary_keys(schema.clone(), table.clone());
+                                let fk_rx = db_manager.fetch_foreign_keys(schema.clone(), table.clone());
 
                                 cx.spawn(async move |this, cx| {
                                     let pk_result = pk_rx.await;
-                                    let _ = this.update(cx, |this, cx| {
-                                        if let Ok(Ok(primary_keys)) = pk_result {
-                                            let context = TableContext {
-                                                schema: schema.clone(),
-                                                table: table.clone(),
-                                                primary_keys: primary_keys.clone(),
-                                            };
+                                    let fk_result = fk_rx.await;
 
-                                            if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_for_pk) {
-                                                tab.table_context = Some(context.clone());
-                                                tab.table_state.update(cx, |state, _cx| {
-                                                    state.set_table_context(Some(context));
-                                                });
-                                            }
+                                    let _ = this.update(cx, |this, cx| {
+                                        let primary_keys = match pk_result {
+                                            Ok(Ok(pks)) => pks,
+                                            _ => vec![],
+                                        };
+
+                                        let foreign_keys = match fk_result {
+                                            Ok(Ok(fks)) => fks
+                                                .into_iter()
+                                                .map(|fk| (fk.column_name.clone(), fk))
+                                                .collect(),
+                                            _ => std::collections::HashMap::new(),
+                                        };
+
+                                        let context = TableContext {
+                                            schema: schema.clone(),
+                                            table: table.clone(),
+                                            primary_keys,
+                                            foreign_keys,
+                                        };
+
+                                        if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_for_pk) {
+                                            tab.table_context = Some(context.clone());
+                                            tab.table_state.update(cx, |state, _cx| {
+                                                state.set_table_context(Some(context));
+                                            });
                                         }
+
                                         cx.notify();
                                     });
                                 }).detach();
@@ -321,6 +337,42 @@ impl PostCommanderPage {
                     }
                 }
                 cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub(crate) fn handle_fk_data_request(
+        &mut self,
+        table_state: Entity<DataTableState>,
+        event: &FkDataRequest,
+        cx: &mut Context<Self>,
+    ) {
+        let db_manager = self.db_manager.clone();
+        let fk_info = event.fk_info.clone();
+        let cell_value = event.cell_value.to_string();
+
+        let rx = db_manager.fetch_fk_referenced_row(
+            fk_info.referenced_schema.clone(),
+            fk_info.referenced_table.clone(),
+            fk_info.referenced_column.clone(),
+            cell_value,
+        );
+
+        cx.spawn(async move |_this, cx| {
+            let result = rx.await;
+            let _ = table_state.update(cx, |state, cx| {
+                match result {
+                    Ok(Ok(data)) => {
+                        state.set_fk_card_data(data, cx);
+                    }
+                    Ok(Err(e)) => {
+                        state.set_fk_card_error(e.to_string(), cx);
+                    }
+                    Err(_) => {
+                        state.set_fk_card_error("Failed to fetch data".to_string(), cx);
+                    }
+                }
             });
         })
         .detach();

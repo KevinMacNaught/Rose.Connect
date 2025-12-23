@@ -4,11 +4,20 @@ use gpui::{Entity, SharedString};
 use gpui_component::input::InputState;
 use std::collections::HashMap;
 
+#[derive(Clone, Debug)]
+pub struct ForeignKeyInfo {
+    pub column_name: String,
+    pub referenced_schema: String,
+    pub referenced_table: String,
+    pub referenced_column: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TableContext {
     pub schema: String,
     pub table: String,
     pub primary_keys: Vec<String>,
+    pub foreign_keys: HashMap<String, ForeignKeyInfo>,
 }
 
 impl TableContext {

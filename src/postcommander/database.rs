@@ -1,3 +1,4 @@
+use crate::postcommander::types::ForeignKeyInfo;
 use anyhow::Result;
 use gpui::SharedString;
 use sqlx::postgres::{PgPool, PgRow};
@@ -82,6 +83,18 @@ pub enum DatabaseCommand {
         table: String,
         response: tokio::sync::oneshot::Sender<Result<Vec<String>>>,
     },
+    FetchForeignKeys {
+        schema: String,
+        table: String,
+        response: tokio::sync::oneshot::Sender<Result<Vec<ForeignKeyInfo>>>,
+    },
+    FetchFkReferencedRow {
+        referenced_schema: String,
+        referenced_table: String,
+        referenced_column: String,
+        value: String,
+        response: tokio::sync::oneshot::Sender<Result<Vec<(String, String)>>>,
+    },
 }
 
 pub struct DatabaseManager {
@@ -153,6 +166,35 @@ impl DatabaseManager {
                                 let _ = response.send(Err(anyhow::anyhow!("Not connected")));
                             }
                         }
+                        DatabaseCommand::FetchForeignKeys { schema, table, response } => {
+                            if let Some(ref p) = pool {
+                                let result = fetch_foreign_keys(p, &schema, &table).await;
+                                let _ = response.send(result);
+                            } else {
+                                let _ = response.send(Err(anyhow::anyhow!("Not connected")));
+                            }
+                        }
+                        DatabaseCommand::FetchFkReferencedRow {
+                            referenced_schema,
+                            referenced_table,
+                            referenced_column,
+                            value,
+                            response,
+                        } => {
+                            if let Some(ref p) = pool {
+                                let result = fetch_fk_referenced_row(
+                                    p,
+                                    &referenced_schema,
+                                    &referenced_table,
+                                    &referenced_column,
+                                    &value,
+                                )
+                                .await;
+                                let _ = response.send(result);
+                            } else {
+                                let _ = response.send(Err(anyhow::anyhow!("Not connected")));
+                            }
+                        }
                     }
                 }
             });
@@ -198,6 +240,38 @@ impl DatabaseManager {
         let _ = self.command_tx.send(DatabaseCommand::FetchPrimaryKeys {
             schema,
             table,
+            response: tx,
+        });
+        rx
+    }
+
+    pub fn fetch_foreign_keys(
+        &self,
+        schema: String,
+        table: String,
+    ) -> tokio::sync::oneshot::Receiver<Result<Vec<ForeignKeyInfo>>> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = self.command_tx.send(DatabaseCommand::FetchForeignKeys {
+            schema,
+            table,
+            response: tx,
+        });
+        rx
+    }
+
+    pub fn fetch_fk_referenced_row(
+        &self,
+        referenced_schema: String,
+        referenced_table: String,
+        referenced_column: String,
+        value: String,
+    ) -> tokio::sync::oneshot::Receiver<Result<Vec<(String, String)>>> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = self.command_tx.send(DatabaseCommand::FetchFkReferencedRow {
+            referenced_schema,
+            referenced_table,
+            referenced_column,
+            value,
             response: tx,
         });
         rx
@@ -274,6 +348,82 @@ async fn fetch_primary_keys(pool: &PgPool, schema: &str, table: &str) -> Result<
         .collect();
 
     Ok(pk_columns)
+}
+
+async fn fetch_foreign_keys(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+) -> Result<Vec<ForeignKeyInfo>> {
+    let sql = r#"
+        SELECT
+            kcu.column_name,
+            ccu.table_schema AS referenced_schema,
+            ccu.table_name AS referenced_table,
+            ccu.column_name AS referenced_column
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = $1
+            AND tc.table_name = $2
+    "#;
+
+    let rows: Vec<PgRow> = sqlx::query(sql)
+        .bind(schema)
+        .bind(table)
+        .fetch_all(pool)
+        .await?;
+
+    let fk_info: Vec<ForeignKeyInfo> = rows
+        .iter()
+        .filter_map(|row| {
+            Some(ForeignKeyInfo {
+                column_name: row.try_get("column_name").ok()?,
+                referenced_schema: row.try_get("referenced_schema").ok()?,
+                referenced_table: row.try_get("referenced_table").ok()?,
+                referenced_column: row.try_get("referenced_column").ok()?,
+            })
+        })
+        .collect();
+
+    Ok(fk_info)
+}
+
+async fn fetch_fk_referenced_row(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+    column: &str,
+    value: &str,
+) -> Result<Vec<(String, String)>> {
+    let sql = format!(
+        r#"SELECT * FROM "{}"."{}" WHERE "{}"::text = $1 LIMIT 1"#,
+        schema, table, column
+    );
+
+    let rows: Vec<PgRow> = sqlx::query(&sql).bind(value).fetch_all(pool).await?;
+
+    if rows.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let row = &rows[0];
+    let result: Vec<(String, String)> = row
+        .columns()
+        .iter()
+        .enumerate()
+        .map(|(i, col)| {
+            let col_name = col.name().to_string();
+            let cell = extract_cell_value(row, i, col.type_info().name());
+            (col_name, cell.display())
+        })
+        .collect();
+
+    Ok(result)
 }
 
 fn extract_cell_value(row: &PgRow, index: usize, type_name: &str) -> CellValue {
