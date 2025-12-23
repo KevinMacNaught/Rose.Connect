@@ -138,6 +138,7 @@ impl PostCommanderPage {
             .flex_col()
             .bg(rgb(background))
             .child(self.render_results_header(
+                cx,
                 result.is_some(),
                 is_loading,
                 error.is_some(),
@@ -193,6 +194,7 @@ impl PostCommanderPage {
 
     fn render_results_header(
         &self,
+        cx: &mut Context<Self>,
         has_result: bool,
         is_loading: bool,
         has_error: bool,
@@ -258,13 +260,17 @@ impl PostCommanderPage {
                         .rounded_md()
                         .cursor_pointer()
                         .hover(move |s| s.bg(rgb(element_hover)))
+                        .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
+                            this.deploy_export_menu(event.position(), window, cx);
+                        }))
                         .child(icon_sm("download", text_muted))
                         .child(
                             div()
                                 .text_xs()
                                 .text_color(rgb(text_muted))
                                 .child("Export"),
-                        ),
+                        )
+                        .child(icon_sm("chevron-down", text_muted)),
                 )
             })
     }
@@ -570,12 +576,8 @@ impl PostCommanderPage {
             .child(div().flex_1())
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap_4()
                     .text_xs()
                     .text_color(rgb(text_muted))
-                    .child(format!("{:.0} FPS", self.current_fps))
                     .child("v0.1.0"),
             )
     }

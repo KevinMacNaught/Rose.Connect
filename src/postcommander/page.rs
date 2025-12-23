@@ -9,7 +9,7 @@ use gpui::*;
 use gpui_component::menu::PopupMenu;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub struct PostCommanderPage {
     pub(crate) sidebar_width: f32,
@@ -35,9 +35,8 @@ pub struct PostCommanderPage {
     pub(crate) schemas_loading: bool,
     pub(crate) context_menu: Option<(Entity<PopupMenu>, Point<Pixels>, String, Subscription)>,
     pub(crate) cell_edit: Option<CellEditState>,
+    pub(crate) export_menu: Option<(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, Subscription)>,
     pub(crate) _subscriptions: Vec<Subscription>,
-    pub(crate) last_frame_instant: Instant,
-    pub(crate) current_fps: f32,
 }
 
 impl PostCommanderPage {
@@ -140,9 +139,8 @@ impl PostCommanderPage {
             schemas_loading: false,
             context_menu: None,
             cell_edit: None,
+            export_menu: None,
             _subscriptions: vec![],
-            last_frame_instant: Instant::now(),
-            current_fps: 0.0,
         }
     }
 
@@ -326,6 +324,67 @@ impl PostCommanderPage {
             });
         })
         .detach();
+    }
+
+    pub(crate) fn deploy_export_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use gpui_component::menu::PopupMenuItem;
+
+        let entity = cx.entity().downgrade();
+        let entity2 = cx.entity().downgrade();
+        let entity3 = cx.entity().downgrade();
+
+        let menu = PopupMenu::build(window, cx, move |menu, _window, _cx| {
+            let e1 = entity.clone();
+            let e2 = entity2.clone();
+            let e3 = entity3.clone();
+
+            menu.item(
+                PopupMenuItem::new("Copy as CSV").on_click(move |_, _window, cx| {
+                    if let Some(page) = e1.upgrade() {
+                        page.update(cx, |page, cx| {
+                            if let Some(csv) = page.export_to_csv(cx) {
+                                page.copy_to_clipboard(csv, cx);
+                            }
+                        });
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy as JSON").on_click(move |_, _window, cx| {
+                    if let Some(page) = e2.upgrade() {
+                        page.update(cx, |page, cx| {
+                            if let Some(json) = page.export_to_json(cx) {
+                                page.copy_to_clipboard(json, cx);
+                            }
+                        });
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy as Markdown").on_click(move |_, _window, cx| {
+                    if let Some(page) = e3.upgrade() {
+                        page.update(cx, |page, cx| {
+                            if let Some(md) = page.export_to_markdown(cx) {
+                                page.copy_to_clipboard(md, cx);
+                            }
+                        });
+                    }
+                }),
+            )
+        });
+
+        let subscription = cx.subscribe(&menu, |this, _, _: &DismissEvent, cx| {
+            this.export_menu = None;
+            cx.notify();
+        });
+
+        self.export_menu = Some((menu, position, subscription));
+        cx.notify();
     }
 
     pub(crate) fn deploy_table_context_menu(
@@ -555,13 +614,6 @@ impl PostCommanderPage {
 
 impl Render for PostCommanderPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let now = Instant::now();
-        let delta = now.duration_since(self.last_frame_instant);
-        self.last_frame_instant = now;
-        if delta.as_secs_f32() > 0.0 {
-            self.current_fps = 1.0 / delta.as_secs_f32();
-        }
-
         let theme = cx.theme();
         let colors = theme.colors();
         let background = colors.background;
@@ -575,12 +627,22 @@ impl Render for PostCommanderPage {
             .context_menu
             .as_ref()
             .map(|(menu, pos, _, _)| (menu.clone(), *pos));
+        let export_menu = self
+            .export_menu
+            .as_ref()
+            .map(|(menu, pos, _)| (menu.clone(), *pos));
 
         div()
+            .id("postcommander-page")
             .size_full()
             .flex()
             .flex_col()
             .bg(rgb(background))
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                if event.keystroke.key == "enter" && event.keystroke.modifiers.platform {
+                    this.execute_query(cx);
+                }
+            }))
             .child(
                 div()
                     .flex_1()
@@ -629,6 +691,26 @@ impl Render for PostCommanderPage {
             })
             .when(show_cell_edit, |el| {
                 el.child(deferred(self.render_cell_edit_modal(window, cx)).with_priority(2))
+            })
+            .when_some(export_menu, |el, (menu, position)| {
+                let window_size = window.bounds().size;
+                el.child(
+                    deferred(
+                        anchored().child(
+                            div()
+                                .w(window_size.width)
+                                .h(window_size.height)
+                                .occlude()
+                                .child(
+                                    anchored()
+                                        .position(position)
+                                        .anchor(Corner::TopRight)
+                                        .child(menu),
+                                ),
+                        ),
+                    )
+                    .with_priority(1),
+                )
             })
     }
 }

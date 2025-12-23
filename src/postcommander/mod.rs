@@ -1,6 +1,7 @@
 mod cell_edit;
 mod connection_dialog;
 pub mod database;
+mod export;
 mod page;
 mod results;
 mod sidebar;

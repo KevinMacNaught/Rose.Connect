@@ -1,630 +1,498 @@
-# PostCommander UI Specification - Remaining Features
+# PostCommander UI Specification - Implementation Checklist
 
-This document lists the remaining unimplemented features for PostCommander. Basic layout, connection dialog, query execution, and results display are already implemented.
-
----
-
-## Table of Contents
-
-1. [Sidebar - Connection Tree Enhancements](#sidebar---connection-tree-enhancements)
-2. [Sidebar - Functions Panel](#sidebar---functions-panel)
-3. [Query Tabs System Enhancements](#query-tabs-system-enhancements)
-4. [Query Editor Enhancements](#query-editor-enhancements)
-5. [Results Table Enhancements](#results-table-enhancements)
-6. [Structure Panel](#structure-panel)
-7. [AI SQL Assistant](#ai-sql-assistant)
-8. [Status Bar Enhancements](#status-bar-enhancements)
-9. [Dialogs and Modals](#dialogs-and-modals)
-10. [Keyboard Shortcuts](#keyboard-shortcuts)
-11. [State Management Enhancements](#state-management-enhancements)
+This document tracks the implementation status of all PostCommander features. Check off items as they are completed.
 
 ---
 
-## Sidebar - Connection Tree Enhancements
+## Implementation Status Legend
+- ✅ = Fully implemented
+- 🔶 = Partially implemented
+- ⬜ = Not started
 
-### Missing Features
+---
 
-**Functions Folder:**
-- Add "Functions" folder under each schema (collapsed by default)
-- Show function nodes with Code icon
-- Lazy load functions when folder is expanded
+## 1. Core Layout & Basic Features
 
-**Local Connection Badge:**
-- If a connection is marked as "local", display a small badge: `LOCAL` (outline style, 10px font)
+### Layout
+- [x] ✅ Sidebar with tree view
+- [x] ✅ Tabs bar for query tabs
+- [x] ✅ Query editor area
+- [x] ✅ Results area (below editor)
+- [x] ✅ Status bar at bottom
 
-**Double Click on Table/View:**
-- Opens new query tab with `SELECT * FROM "schema"."table" LIMIT 100;`
-- Auto-executes the query
+### Sidebar Resizing
+- [x] ✅ Drag handle between sidebar and main area
+- [x] ✅ Min/max width constraints (180px - 500px)
+- [x] ✅ Persist width to settings
 
-**Drag Start (Tables/Views only):**
-- Enable dragging with `cursor-grab` / `cursor-grabbing`
-- Set drag data: `{ schema, name, connectionId, database }`
+### Editor/Results Split
+- [x] ✅ Horizontal drag handle between editor and results
+- [x] ✅ Min/max height constraints (100px - 600px)
+- [x] ✅ Persist height to settings
 
-**Context Menus:**
+### Query Tabs
+- [x] ✅ Add new tab (+button)
+- [x] ✅ Close tab (X button)
+- [x] ✅ Switch between tabs
+- [x] ✅ Tab shows name and database
+
+---
+
+## 2. Connection & Database
+
+### Connection Dialog
+- [x] ✅ Host input
+- [x] ✅ Port input
+- [x] ✅ Database input
+- [x] ✅ Username input
+- [x] ✅ Password input (masked)
+- [ ] ⬜ Connection Name field
+- [ ] ⬜ SSL toggle
+- [x] ✅ Connect button
+- [x] ✅ Cancel button
+- [x] ✅ Backdrop click to close
+
+### Connection Persistence
+- [x] ✅ Save connection to settings
+- [x] ✅ Auto-reconnect on app launch (if saved connection exists)
+- [ ] ⬜ Password prompt flow (for connections without cached password)
+
+### Multi-Connection Support
+- [ ] ⬜ Support multiple connections simultaneously
+- [ ] ⬜ Connection ID on each connection
+- [ ] ⬜ Connection selection/switching
+- [ ] ⬜ Multiple root nodes in tree
+
+---
+
+## 3. Sidebar - Connection Tree
+
+### Tree Structure
+- [x] ✅ Server node (host:port)
+- [x] ✅ Database node
+- [x] ✅ Schema nodes (lazy loaded)
+- [x] ✅ Tables folder per schema
+- [x] ✅ Views folder per schema
+- [ ] ⬜ Functions folder per schema
+
+### Tree Interactions
+- [x] ✅ Click to expand/collapse nodes
+- [x] ✅ Persist expanded state to settings
+- [x] ✅ Lazy load schemas when database expanded
+- [x] ✅ Double-click table/view → Open SELECT query tab + auto-execute
+- [ ] ⬜ Drag tables/views (for dropping elsewhere)
+- [ ] ⬜ Local connection badge indicator
+
+### Context Menus
+**Table Node:**
+- [x] ✅ Select Top 100 (opens new tab, auto-executes)
+- [ ] ⬜ New Query
+
+**View Node:**
+- [ ] ⬜ Select Top 100
+- [ ] ⬜ New Query
 
 **Connection Node:**
-- New Query
-- Refresh
-- ---
-- Edit Connection
-- Delete Connection (destructive/red text)
+- [ ] ⬜ New Query
+- [ ] ⬜ Refresh
+- [ ] ⬜ Edit Connection
+- [ ] ⬜ Delete Connection (destructive)
 
 **Database Node:**
-- New Query
-- Refresh
+- [ ] ⬜ New Query
+- [ ] ⬜ Refresh
 
 **Schema Node:**
-- New Query
-- Refresh
-
-**Table/View Node:** (PARTIALLY IMPLEMENTED - Table context menu done)
-- Select Top 100 ✓ (opens new tab with `SELECT * FROM "schema"."table" LIMIT 100;` and auto-executes)
-- New Query
+- [ ] ⬜ New Query
+- [ ] ⬜ Refresh
 
 **Function Node:**
-- New Query
-- ---
-- Drop Function (destructive/red text)
+- [ ] ⬜ New Query
+- [ ] ⬜ Drop Function (destructive)
 
-**Search/Filter Functionality:**
-- Search input at top of sidebar (UI exists, functionality missing)
-- Filters tree recursively - shows matching nodes and their ancestors
-- Matching nodes expand automatically
-- X clear button on right (when has value)
-
-**Password Prompt Flow:**
-1. When user expands a connection node without cached password
-2. Show password dialog modal
-3. On submit, test connection
-4. If success, cache password and continue loading
-5. If fail, show error in dialog, allow retry
-
-**Multi-Connection Support:**
-- Support multiple connections simultaneously
-- Each connection appears as separate root node in tree
-- Connection selection/switching
+### Search/Filter
+- [x] 🔶 Search input UI exists
+- [ ] ⬜ Functional filtering of tree
+- [ ] ⬜ Recursive matching (shows ancestors)
+- [ ] ⬜ Auto-expand matching nodes
+- [ ] ⬜ Clear button (X) when has value
 
 ---
 
-## Sidebar - Functions Panel
+## 4. Sidebar - Functions Panel
 
-### Purpose
-Lists all PostgreSQL functions from a schema manifest, allowing filtering and execution.
+> **Status: ⬜ Not Started**
 
-### Layout
-```
-+---------------------------+
-| [Search Input]            |
-+---------------------------+
-| Function List             |
-| - function_name           |
-| - function_name           |
-| ...                       |
-+---------------------------+
-| Function Executor         |  <- Only visible when a function is selected
-| (input fields, buttons)   |
-+---------------------------+
-```
-
-### Search Input
-- Placeholder: "Filter functions..."
-- Search icon on left
-- X clear button on right (when has value)
-
-### Function List
-- Each function displayed as a clickable row
-- Shows function name and optional description
-- Click to select and show executor panel
-
-### Function Executor Panel
-When a function is selected, shows:
-- Function name as header
-- Input field for each argument with:
-  - Label (argument name)
-  - Type hint
-  - Value input
-  - Optional lookup popover for FK arguments
-- **Buttons:**
-  - "Run in Editor" - Opens new query tab with formatted SELECT call, auto-executes
-  - "Copy SQL" - Copies the function call SQL to clipboard
-  - "View Definition" - Shows the full function source in a modal
-
-### Loading/Empty States
-- **Loading**: Spinner with "Loading functions..."
-- **Error**: Red text showing error message
-- **Empty**: Code icon with "No functions found" and hint "Run pnpm schema:generate"
+- [ ] ⬜ Functions panel layout
+- [ ] ⬜ Search/filter input
+- [ ] ⬜ Function list display
+- [ ] ⬜ Function executor panel
+  - [ ] ⬜ Argument input fields
+  - [ ] ⬜ "Run in Editor" button
+  - [ ] ⬜ "Copy SQL" button
+  - [ ] ⬜ "View Definition" button
+- [ ] ⬜ Loading state
+- [ ] ⬜ Error state
+- [ ] ⬜ Empty state
 
 ---
 
-## Query Tabs System Enhancements
+## 5. Query Editor
 
-### Drag and Drop
-- When dragging a .sql file over the tabs area:
-  - Show highlight ring (primary color)
-  - Show overlay with folder icon: "Drop SQL file to open"
-- On drop, parse file and show connection picker dialog
+### Editor Component
+- [x] ✅ SQL syntax highlighting (via gpui-component Input.code_editor("sql"))
+- [x] ✅ Line numbers
+- [x] ✅ Soft wrap
+- [x] ✅ Theme sync with app dark/light mode
 
-### Tab State Enhancements
-Each tab should maintain:
-- `connectionId`: Associated connection (currently missing)
-- `tableContext`: Parsed table info for editing (schema, table, primaryKeys, foreignKeys)
-- `autoExecute`: Flag to auto-run on creation
+### Toolbar
+- [x] ✅ Execute button (Run/Running state)
+- [x] ✅ AI button (placeholder, no functionality)
+- [ ] ⬜ Save button (⌘S)
+- [ ] ⬜ Structure panel toggle button
 
-### Empty State Enhancements
-Add to empty state:
-- "or drag and drop a .sql file here" hint
-- Quick tips section:
-  - ⌘K AI SQL Assistant
-  - ⌘O Open file
-  - ⌘↵ Execute
+### Editor Enhancements
+- [ ] ⬜ SQL keyword auto-capitalization
+- [ ] ⬜ Dangerous SQL detection warning (DROP, DELETE without WHERE, TRUNCATE)
+- [ ] ⬜ Connection-aware autocomplete
 
 ---
 
-## Query Editor Enhancements
+## 6. Query Tabs System
 
-### Editor Implementation (COMPLETED)
-Using `gpui-component`'s `Input` with `InputState` configured as a code editor:
-- Language: SQL (via `tree-sitter-sequel`)
-- Line numbers: enabled
-- Soft wrap: enabled
-- Syntax highlighting: automatic via gpui-component's `HighlightTheme`
-- Theme sync: Automatically matches app's dark/light mode
+### Tab State
+- [x] ✅ id
+- [x] ✅ name
+- [x] ✅ database
+- [x] ✅ editor (InputState entity)
+- [x] ✅ table_state (DataTableState entity)
+- [x] ✅ table_context (schema, table, primary keys)
+- [x] ✅ result
+- [x] ✅ error
+- [x] ✅ is_loading
+- [ ] ⬜ connectionId
+- [ ] ⬜ tableContext.foreignKeys
+- [ ] ⬜ autoExecute flag
 
-**Implementation files:**
-- `src/postcommander/types.rs` - `QueryTab.editor: Entity<InputState>`
-- `src/postcommander/page.rs` - `add_tab()` creates editor with `.code_editor("sql")`
-- `src/postcommander/results.rs` - `render_query_editor()` renders `Input::new(&editor)`
-- `src/theme/mod.rs` - `sync_to_gpui_component()` sets `highlight_theme`
+### Tab Persistence
+- [ ] ⬜ Persist tabs to settings (id, name, connectionId, database, query)
+- [ ] ⬜ Restore tabs on app launch
 
-### Future Enhancements (NOT YET IMPLEMENTED)
-
-### SQL Keyword Auto-Capitalization
-When user types a SQL keyword followed by space/enter/tab/semicolon, automatically convert to uppercase.
-
-Keywords list includes: `SELECT`, `FROM`, `WHERE`, `AND`, `OR`, `JOIN`, `LEFT`, `RIGHT`, `INNER`, `OUTER`, `GROUP BY`, `ORDER BY`, `HAVING`, `LIMIT`, `OFFSET`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `TABLE`, `INDEX`, `VIEW`, etc.
-
-### Theme Sync
-Editor theme dynamically matches application dark/light mode:
-- Reads CSS custom properties (`--background`, `--foreground`, `--muted`, etc.)
-- Computes if dark mode based on background luminance
-- Creates custom Monaco theme with matching colors
-
-### Dangerous SQL Detection
-Before executing queries containing:
-- DROP
-- ALTER
-- DELETE (without WHERE)
-- TRUNCATE
-
-Show a warning toast: "Dangerous SQL detected - review before executing"
-Display which operations are detected.
-
-### Autocomplete
-- Connection-aware: suggests tables and columns from current database
-- Triggered on typing or explicitly
-- Shows table names with schema prefix when not `public`
-
-### Toolbar Enhancements
-Add missing buttons:
-- **Save button** (Save icon, ⌘S): Save query to .sql file
-- **Structure Toggle** (PanelRightOpen/PanelRightClose icon): Toggle structure panel visibility
-
-### Resizable Editor/Results Split (IMPLEMENTED)
-- Horizontal drag handle between editor and results
-- Editor height: 200px default, 100px minimum, 600px maximum
-- Sidebar width: 240px default, 180px minimum, 500px maximum
-- **Both values persist** to settings and restore on app relaunch
-
----
-
-## Results Table Enhancements
-
-### Toolbar Enhancements
-- Add "Editable" indicator (green text) when table has primary keys
-- Implement Export dropdown menu with options:
-  - Export as CSV
-  - Export as JSON (pretty printed)
-  - Export as SQL INSERT
-  - Export as Markdown
-  - Copy as Markdown (max 100 rows)
-
-### Column Headers Enhancements
-- If column is a foreign key: show Link icon before name, light primary background
-- Add checkbox column on left for row selection
-
-### Cell Display Enhancements
-- Null values: Show em-dash (—) in muted color (currently shows "NULL")
-- Expandable values: Show expand button on hover (values > 50 chars or multiline)
-- Foreign key columns: Special rendering with clickable values
-
-### Foreign Key Cells
-- Display value normally
-- On hover, show external link icon
-- On click, opens new query tab with SELECT for referenced table/row
-
-### Row Selection
-- Checkbox column on left
-- Multi-select supported
-- Selection state tracked as array of row indices
-
-### Selection Footer
-Appears when rows are selected:
-- Shows count: "3 rows selected"
-- **Clear button**: Deselects all
-- **Bulk Edit button**: Opens bulk edit dialog (only if editable)
-- **Delete button**: Opens delete confirmation (only if editable)
-- **View Related button**: Opens batch preview dialog (only if has foreign keys)
-
-### Inline Cell Editing
-
-**Activation:**
-- Double-click on any cell
-- If not editable (no primary keys), just copy value to clipboard
-
-**Edit Popover:**
-```
-+----------------------------------+
-| column_name    ⌘+↵ save  esc cancel |  <- Header
-+----------------------------------+
-| [Textarea]                       |
-|                                  |
-+----------------------------------+
-| [Expand]        [Cancel] [Save]  |  <- Footer
-+----------------------------------+
-```
-
-- Textarea auto-resizes up to 200px height
-- Expand button shown for large values (>300 chars or >3 newlines)
-- Type "NULL" to set null value
-- Empty input on null original = keep null
-
-**Expanded Edit Dialog:**
-Full modal with larger textarea (300px min-height, 60vh max)
-
-### Table Context Parsing
-- Parse query results to detect if they come from a single table
-- Extract primary keys and foreign keys from database metadata
-- Store in `tableContext` for enabling editing features
-
----
-
-## Structure Panel
-
-### Purpose
-Shows the schema structure of tables referenced in the current query.
-
-### Toggle
-Button in query editor toolbar toggles visibility.
-
-### Header
-```
-+----------------------------------+
-| Structure        [List] [Diagram]|
-+----------------------------------+
-```
-- Two view modes: List view and Diagram view
-
-### List View
-Collapsible sections for each table in query:
-```
-▼ schema.table_name (alias)
-  │ 🔑 id           uuid
-  │ 🔗 company_id   uuid
-  │    name         varchar(255)
-  │    created_at   timestamp
-```
-
-**Column Indicators:**
-- Key icon (amber): Primary key column
-- Link icon (blue): Foreign key column
-- Hovering FK icon shows tooltip: `referenced_table.column`
-
-### Diagram View
-Visual relationship diagram showing tables and their connections:
-- Boxes for each table
-- Lines connecting FK relationships
-- Interactive - click to focus or open new query
+### Drag & Drop
+- [ ] ⬜ Drag .sql file over tabs area
+- [ ] ⬜ Highlight ring on drag over
+- [ ] ⬜ Parse file and show connection picker on drop
 
 ### Empty State
-When no FROM/JOIN in query:
-```
-     [Table Icon]
-  Table structure appears here
-  Add FROM or JOIN to your query
-```
-
-### Query Parsing
-- Parses SQL to extract tables from FROM and JOIN clauses
-- Supports schema-qualified names: `schema.table`
-- Supports aliases: `table AS t`
-- Debounces parsing (400ms delay)
-
-### Panel Sizing
-- Width: 25% default (when visible), 15% minimum, 40% maximum
-- Resizable with vertical drag handle between editor and structure panel
+- [x] ✅ "Ready to query" / "Connect to database" message
+- [x] ✅ "New Query" / "Connect" button
+- [ ] ⬜ "or drag and drop a .sql file here" hint
+- [ ] ⬜ Quick tips section (⌘K AI, ⌘O open, ⌘↵ run)
 
 ---
 
-## AI SQL Assistant
+## 7. Results Table
+
+### Basic Display
+- [x] ✅ Column headers with name and type
+- [x] ✅ Data rows with cells
+- [x] ✅ Row alternating background
+- [x] ✅ Hover highlight
+- [x] ✅ Primary key indicator in column headers
+
+### Column Features
+- [x] ✅ Column resizing via drag handles
+- [x] ✅ Text truncation with ellipsis
+- [ ] ⬜ FK icon + light primary background for FK columns
+- [ ] ⬜ Checkbox column for row selection
+
+### Cell Display
+- [x] ✅ NULL values shown as em-dash (—) in muted color
+- [ ] ⬜ Expandable values button (for >50 chars or multiline)
+
+### Results Header
+- [x] ✅ Execution time (ms)
+- [x] ✅ Row count
+- [x] ✅ Export button with dropdown menu
+- [ ] ⬜ "Editable" indicator when table has primary keys
+- [x] ✅ Export dropdown menu
+  - [x] ✅ Copy as CSV (to clipboard)
+  - [x] ✅ Copy as JSON (to clipboard)
+  - [x] ✅ Copy as Markdown (max 100 rows, to clipboard)
+  - [ ] ⬜ Export as SQL INSERT
+
+### Foreign Key Cells
+- [ ] ⬜ Show external link icon on hover
+- [ ] ⬜ Click opens new tab with SELECT for referenced record
+
+### Row Selection
+- [ ] ⬜ Checkbox column on left
+- [ ] ⬜ Multi-select support
+- [ ] ⬜ Selection state tracking
+
+### Selection Footer
+- [ ] ⬜ "N rows selected" count
+- [ ] ⬜ Clear selection button
+- [ ] ⬜ Bulk Edit button (if editable)
+- [ ] ⬜ Delete button (if editable)
+- [ ] ⬜ View Related button (if has FKs)
+
+---
+
+## 8. Cell Editing
 
 ### Activation
-- Press ⌘K or click AI button in editor toolbar
-- Opens as overlay on top of editor
+- [x] ✅ Double-click on cell opens edit modal
+- [ ] ⬜ If not editable, copy value to clipboard instead
 
-### Layout
-```
-+-----------------------------------------------+
-| ✨ AI Query Builder                      [X] |  <- Header
-+-----------------------------------------------+
-| [Add table] @table1 @table2 via:col Loading...|  <- Table selection
-+-----------------------------------------------+
-| [suggestion 1] [suggestion 2] [suggestion 3]  |  <- AI suggestions (pills)
-+-----------------------------------------------+
-| Type @table to select, then describe query... |  <- Prompt input
-|                               [Generate ↵]    |
-+-----------------------------------------------+
-|                    Hide suggestions           |  <- Toggle link
-+-----------------------------------------------+
-```
+### Edit Modal
+- [x] ✅ Column name in header
+- [x] ✅ Keyboard shortcuts display (⌘↵ save, esc cancel)
+- [x] ✅ Textarea input
+- [x] ✅ Cancel button
+- [x] ✅ Save button
+- [x] ✅ Saving state indicator
+- [x] ✅ Error display
+- [x] ✅ Backdrop click to cancel
+- [x] ✅ Escape key to cancel
+- [x] ✅ ⌘↵ to save
+- [ ] ⬜ Expand button for large values (>300 chars or >3 newlines)
+- [ ] ⬜ Type "NULL" to set null value detection
+
+### Database Update
+- [x] ✅ Build UPDATE query with WHERE using primary keys
+- [x] ✅ Execute UPDATE
+- [x] ✅ Update local cell value on success
+- [x] ✅ Show error on failure
+
+### Expanded Edit Dialog
+- [ ] ⬜ Full modal with larger textarea (300px min-height, 60vh max)
+
+---
+
+## 9. Structure Panel
+
+> **Status: ⬜ Not Started**
+
+- [ ] ⬜ Panel layout (right side of editor)
+- [ ] ⬜ Toggle button in toolbar
+- [ ] ⬜ Resizable width (15% - 40%)
+
+### List View
+- [ ] ⬜ Collapsible sections for each table in query
+- [ ] ⬜ Column list with name and type
+- [ ] ⬜ PK icon for primary key columns
+- [ ] ⬜ FK icon for foreign key columns
+- [ ] ⬜ FK tooltip showing referenced table.column
+
+### Diagram View
+- [ ] ⬜ Visual boxes for tables
+- [ ] ⬜ Lines connecting FK relationships
+- [ ] ⬜ Interactive (click to focus/open query)
+
+### Query Parsing
+- [ ] ⬜ Parse SQL to extract tables from FROM/JOIN
+- [ ] ⬜ Support schema-qualified names
+- [ ] ⬜ Support aliases
+- [ ] ⬜ Debounce parsing (400ms)
+
+### Empty State
+- [ ] ⬜ "Table structure appears here" message
+- [ ] ⬜ "Add FROM or JOIN to your query" hint
+
+---
+
+## 10. AI SQL Assistant
+
+> **Status: ⬜ Not Started**
+
+### Activation
+- [ ] ⬜ ⌘K keyboard shortcut
+- [ ] ⬜ AI button in toolbar triggers overlay
+
+### Overlay Layout
+- [ ] ⬜ Header with title and close button
+- [ ] ⬜ Table selection area
+- [ ] ⬜ AI suggestions pills
+- [ ] ⬜ Prompt input
+- [ ] ⬜ Generate button
+- [ ] ⬜ Hide suggestions toggle
 
 ### Table Selection
-
-**Add Table Button:**
-- Opens dropdown picker with search
-- Shows table name and type (table/view)
-- Already selected tables are disabled
-- Max 20 tables shown
-
-**@Mention Autocomplete:**
-- Typing `@` triggers autocomplete
-- Shows filtered table list
-- Arrow keys to navigate, Tab/Enter to select
-- Inserts `@schema.table` into prompt
-
-**Selected Tables Display:**
-- Pills showing table name
-- If added via FK expansion, shows "via column_name"
-- X button to remove
-
-**FK Expansion:**
-- When a table is added, automatically fetches related tables via foreign keys
-- Shows "Loading related..." indicator
-- Related tables added with `viaColumn` attribute
+- [ ] ⬜ Add table button with dropdown picker
+- [ ] ⬜ @mention autocomplete in prompt
+- [ ] ⬜ Selected tables as pills with X to remove
+- [ ] ⬜ FK expansion (auto-add related tables)
+- [ ] ⬜ "via column_name" indicator for FK-added tables
 
 ### AI Suggestions
-- After tables are selected, AI generates prompt suggestions
-- Displayed as clickable pills/chips
-- Click to insert into prompt input
-- Can be hidden via toggle link
+- [ ] ⬜ Generate prompt suggestions after tables selected
+- [ ] ⬜ Display as clickable pills
+- [ ] ⬜ Insert into prompt on click
 
-### Prompt Input
-- Single-line input field
-- Placeholder: "Type @table to select, then describe your query..."
-- Focus ring on focus
-- Generate button enabled only when tables selected AND prompt has content
-
-### Generation Flow
-1. User clicks Generate or presses Enter
-2. Close AI overlay
-3. Stream generated SQL into editor
-4. On complete:
-   - If dangerous SQL detected, show warning toast
-   - If safe, show success toast and auto-execute
+### Generation
+- [ ] ⬜ Call AI to generate SQL
+- [ ] ⬜ Stream result into editor
+- [ ] ⬜ Dangerous SQL warning toast
+- [ ] ⬜ Auto-execute if safe
 
 ### Cancel
-- Escape key closes overlay
-- X button closes overlay
-- If generation in progress, abort it
+- [ ] ⬜ Escape key closes overlay
+- [ ] ⬜ X button closes overlay
+- [ ] ⬜ Abort generation if in progress
 
 ---
 
-## Status Bar Enhancements
+## 11. Status Bar
 
-### Right Side Enhancements
-Add keyboard shortcuts as hints:
-- `⌘K` AI
-- `⌘O` open
-- `⌘↵` run
-
----
-
-## Dialogs and Modals
-
-### Password Prompt Dialog
-Modal asking for password to authenticate connection:
-- Connection name in title
-- Password input (type=password)
-- Cancel and Submit buttons
-- Error message display on failure
-
-### Open File Dialog
-When opening a .sql file, prompt for:
-- Connection selection dropdown
-- Database selection dropdown
-- Open and Cancel buttons
-
-### Expanded Cell Dialog
-For viewing/editing large cell values:
-- Column name in header
-- Copy button
-- Pre-formatted content display
-- If editing: textarea and save/cancel buttons
-
-### Delete Confirmation Dialog
-```
-Delete N row(s)?
-This action cannot be undone. The selected row(s) will be
-permanently deleted from schema.table.
-[Cancel] [Delete]
-```
-
-### Bulk Edit Dialog
-```
-Bulk Edit N row(s)
-Update a column value for all selected rows in schema.table.
-
-Column: [Dropdown of non-PK columns]
-New Value: [Input, placeholder: "Enter new value (type NULL for null)"]
-
-[Cancel] [Update N row(s)]
-```
-
-### Batch Preview Dialog
-Shows preview of related records across foreign keys for selected rows.
-
-### Connection Dialog Enhancements
-Add missing fields:
-- Connection Name (required)
-- SSL toggle
+- [x] ✅ Connection status indicator (dot + text)
+- [x] ✅ Host:port when connected
+- [x] ✅ Database name when connected
+- [x] ✅ Version number
+- [ ] ⬜ Keyboard shortcuts hints (⌘K AI, ⌘O open, ⌘↵ run)
 
 ---
 
-## Keyboard Shortcuts
+## 12. Dialogs & Modals
+
+### Implemented
+- [x] ✅ Connection dialog
+- [x] ✅ Cell edit modal
+
+### Not Implemented
+- [ ] ⬜ Password prompt dialog
+- [ ] ⬜ Open file dialog (for .sql files)
+- [ ] ⬜ Expanded cell dialog (for viewing/editing large values)
+- [ ] ⬜ Delete confirmation dialog
+- [ ] ⬜ Bulk edit dialog
+- [ ] ⬜ Batch preview dialog (FK-related records)
+
+---
+
+## 13. Keyboard Shortcuts
 
 ### Global
-| Shortcut | Action |
-|----------|--------|
-| ⌘O | Open SQL file |
-| Escape | Close AI assistant / Cancel edit |
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| ⌘O | Open SQL file | ⬜ |
+| Escape | Close AI assistant / Cancel edit | 🔶 (edit only) |
 
 ### Query Editor
-| Shortcut | Action |
-|----------|--------|
-| ⌘↵ | Execute query |
-| ⌘K | Open AI SQL Assistant |
-| ⌘S | Save query to file |
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| ⌘↵ | Execute query | ✅ |
+| ⌘K | Open AI SQL Assistant | ⬜ |
+| ⌘S | Save query to file | ⬜ |
 
 ### AI Assistant
-| Shortcut | Action |
-|----------|--------|
-| @ | Trigger table mention |
-| ↑/↓ | Navigate suggestions |
-| Tab/Enter | Select suggestion |
-| Enter | Generate (when ready) |
-| Escape | Close |
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| @ | Trigger table mention | ⬜ |
+| ↑/↓ | Navigate suggestions | ⬜ |
+| Tab/Enter | Select suggestion | ⬜ |
+| Enter | Generate (when ready) | ⬜ |
+| Escape | Close | ⬜ |
 
-### Results Table (Cell Editing)
-| Shortcut | Action |
-|----------|--------|
-| Double-click | Enter edit mode |
-| ⌘↵ | Save edit |
-| Escape | Cancel edit |
-
----
-
-## State Management Enhancements
-
-### Connection Store Enhancements
-Add support for:
-- `connections`: Array of connection configs (currently single connection)
-- `connectionStatuses`: Map of connectionId -> status
-- `treeData`: Hierarchical tree node structure
-- `refreshRequest`: Pending refresh for connection/database
-
-### AI Assistant Store
-Transient state:
-- `isOpen`: Boolean
-- `selectedTables`: Array of selected tables
-- `isExpandingFk`: Boolean loading flag
-
-### Functions Store
-- `manifest`: Loaded function definitions
-- `loading`: Boolean
-- `error`: Error message
-- `searchQuery`: Filter text
-- `selectedFunction`: Currently selected function
-
-### Sidebar Store
-- `isCollapsed`: Boolean
-- `adminSidebarWidth`: Number (for PostCommander route)
-
-### What Persists vs. Clears on Reload
-**Persists (settings file):**
-- Connection definitions (under `postcommander.connection`)
-- Tree expansion state (under `postcommander.expanded_nodes`)
-- Sidebar width (under `postcommander.sidebar_width`)
-- Editor/results divider height (under `postcommander.editor_height`)
-- Tab definitions (id, name, connectionId, database, query) - NOT YET IMPLEMENTED
-
-**Clears on Reload:**
-- Query results
-- Execution state
-- Schema/table data (auto-fetched on reconnect if database node is expanded)
-- AI assistant state
-- Cell editing state
-
-**Settings File Structure:**
-```json
-{
-  "theme_name": "One Dark",
-  "window_bounds": { "x": 0, "y": 0, "width": 1200, "height": 800 },
-  "postcommander": {
-    "connection": { "host": "localhost", "port": "5432", ... },
-    "expanded_nodes": ["server", "database", "schema:public"],
-    "sidebar_width": 280.0,
-    "editor_height": 250.0
-  }
-}
-```
-
-**Implementation Note:** When the app reconnects with a previously expanded database node, schemas are automatically fetched. This is handled in `connect_to_database()` which checks if the "database" node is already in `expanded_nodes` after successful connection.
+### Cell Editing
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| Double-click | Enter edit mode | ✅ |
+| ⌘↵ | Save edit | ✅ |
+| Escape | Cancel edit | ✅ |
 
 ---
 
-## Appendix: Data Types
+## 14. Data Types & State Management
 
 ### QueryTab (Enhanced)
-```typescript
-interface QueryTab {
-  id: string
-  name: string
-  connectionId: string  // Currently missing
-  database: string
-  query: string
-  results?: {
-    columns: { name: string; dataType: string; nullable: boolean }[]
-    rows: Record<string, unknown>[]
-    rowCount: number
-    executionTime: number
-  }
-  tableContext?: {  // Currently missing
-    schema: string
-    table: string
-    primaryKeys: string[]
-    foreignKeys?: {
-      column: string
-      references: { schema: string; table: string; column: string }
-    }[]
-  }
-  isExecuting?: boolean
-  error?: string
-  autoExecute?: boolean  // Currently missing
-}
+```
+Current fields:
+✅ id: String
+✅ name: String
+✅ database: String
+✅ editor: Entity<InputState>
+✅ table_state: Entity<DataTableState>
+✅ table_context: Option<TableContext>
+✅ result: Option<QueryResult>
+✅ error: Option<String>
+✅ is_loading: bool
+
+Missing fields:
+⬜ connectionId: String
+⬜ autoExecute: bool
+```
+
+### TableContext
+```
+Current fields:
+✅ schema: String
+✅ table: String
+✅ primary_keys: Vec<String>
+
+Missing fields:
+⬜ foreign_keys: Vec<ForeignKey>
 ```
 
 ### ConnectionConfig (Enhanced)
-```typescript
-interface ConnectionConfig {
-  id: string  // Currently missing
-  name: string  // Currently missing
-  host: string
-  port: number
-  database: string
-  user: string
-  password: string
-  ssl: boolean  // Currently missing
-  isLocal?: boolean  // Currently missing
-}
+```
+Current fields:
+✅ name: String (hardcoded "Local PostgreSQL")
+✅ host: String
+✅ port: u16
+✅ database: String
+✅ username: String
+✅ password: String
+
+Missing fields:
+⬜ id: String
+⬜ ssl: bool
+⬜ is_local: bool
 ```
 
-### SelectedTable (AI)
-```typescript
-interface SelectedTable {
-  schema: string
-  name: string
-  connectionId: string
-  database: string
-  isPrimary?: boolean
-  viaColumn?: string
-}
+### State Persistence
 ```
+What persists (in settings):
+✅ Connection (host, port, database, username, password)
+✅ Expanded nodes
+✅ Sidebar width
+✅ Editor height
+⬜ Tab definitions (not persisted)
+
+What clears on reload:
+✅ Query results
+✅ Execution state
+✅ Schema data (re-fetched on expand)
+✅ Cell editing state
+```
+
+---
+
+## Summary
+
+### Completed Features
+- Basic layout (sidebar, tabs, editor, results, status bar)
+- Connection dialog and database connection
+- Query execution and results display
+- Tree view with schemas, tables, views
+- Table context menu with "Select Top 100"
+- Resizable sidebar and editor/results split
+- Query tabs (add, close, switch)
+- SQL code editor with syntax highlighting
+- Cell editing with modal and UPDATE queries
+- Settings persistence (connection, expanded nodes, sizes)
+
+### Priority Next Steps (Suggested Order)
+1. ~~**Keyboard shortcuts** (⌘↵ for execute at minimum)~~ ✅
+2. ~~**Double-click table** → open SELECT query~~ ✅
+3. ~~**Export functionality** (CSV at minimum)~~ ✅
+4. **Search/filter in sidebar**
+5. ~~**NULL display as em-dash**~~ ✅
+6. **Connection Name + SSL in dialog**
+7. **Tab persistence across reload**
+8. **Structure Panel**
+9. **AI SQL Assistant**
+10. **Multi-connection support**
+
+---
+
+*Last updated: December 2024*

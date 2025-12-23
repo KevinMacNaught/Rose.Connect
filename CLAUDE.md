@@ -14,7 +14,7 @@ cargo run            # Run the application
 cargo check          # Type check without building
 cargo test           # Run tests
 cargo test test_name # Run a specific test
-cargo watch -x run -i data/  # Auto-rebuild on changes, ignoring data/
+cargo watch -x run -i data/ -i docs/  # Auto-rebuild on changes
 ```
 
 **Cargo Watch Gotcha:** If your app writes files to the project directory (like `data/settings.json`), cargo watch will detect the change and trigger a rebuild/relaunch. Use `-i data/` to ignore the data directory.

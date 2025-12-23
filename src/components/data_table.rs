@@ -434,7 +434,7 @@ impl RenderOnce for DataTable {
                                     .text_ellipsis()
                                     .text_color(rgb(if is_null { text_muted } else { text }))
                                     .when(is_null, |el| el.italic())
-                                    .child(cell.clone()),
+                                    .child(if is_null { SharedString::from("—") } else { cell.clone() }),
                             )
                     }))
             })

@@ -395,7 +395,9 @@ impl PostCommanderPage {
                 el.child(
                     div().pl_4().children(tables_clone.iter().map(|table| {
                         let table_name = table.clone();
+                        let table_name_dbl = table.clone();
                         let schema_for_menu = schema_name_for_items.clone();
+                        let schema_for_dbl = schema_name_for_items.clone();
                         let is_context_target = context_menu_table.as_ref() == Some(table);
 
                         div()
@@ -420,6 +422,11 @@ impl PostCommanderPage {
                                     .text_color(rgb(text))
                                     .child(table.clone()),
                             )
+                            .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                                if event.click_count() == 2 {
+                                    this.query_table(&schema_for_dbl, &table_name_dbl, window, cx);
+                                }
+                            }))
                             .on_mouse_down(
                                 MouseButton::Right,
                                 cx.listener(move |this, event: &MouseDownEvent, window, cx| {
@@ -448,6 +455,7 @@ impl PostCommanderPage {
         text: u32,
     ) -> impl IntoElement {
         let schema_name_click = schema_name.clone();
+        let schema_name_for_items = schema_name.clone();
         let views_clone = views.to_vec();
 
         div()
@@ -480,7 +488,11 @@ impl PostCommanderPage {
             .when(views_expanded, |el| {
                 el.child(
                     div().pl_4().children(views_clone.iter().map(|view| {
+                        let view_name = view.clone();
+                        let schema_for_view = schema_name_for_items.clone();
+
                         div()
+                            .id(SharedString::from(format!("view-{}-{}", schema_for_view, view_name)))
                             .px_2()
                             .py_1()
                             .flex()
@@ -500,6 +512,11 @@ impl PostCommanderPage {
                                     .text_color(rgb(text))
                                     .child(view.clone()),
                             )
+                            .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                                if event.click_count() == 2 {
+                                    this.query_table(&schema_for_view, &view_name, window, cx);
+                                }
+                            }))
                     })),
                 )
             })
