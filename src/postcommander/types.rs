@@ -12,6 +12,31 @@ pub struct ForeignKeyInfo {
     pub referenced_column: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct ForeignKeyRef {
+    pub schema: String,
+    pub table: String,
+    pub column: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct TableColumn {
+    pub name: String,
+    pub data_type: String,
+    pub nullable: bool,
+    pub default_value: Option<String>,
+    pub is_primary_key: bool,
+    pub is_foreign_key: bool,
+    pub references: Option<ForeignKeyRef>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TableStructureInfo {
+    pub schema: String,
+    pub table: String,
+    pub columns: Vec<TableColumn>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TableContext {
     pub schema: String,
@@ -50,6 +75,9 @@ pub struct QueryTab {
     pub error: Option<String>,
     pub is_loading: bool,
     pub last_export_message: Option<String>,
+    pub table_structures: Vec<TableStructureInfo>,
+    pub structure_loading: bool,
+    pub structure_expanded: HashMap<String, bool>,
 }
 
 #[derive(Clone, PartialEq)]

@@ -7,7 +7,7 @@ use gpui::*;
 use gpui_component::input::Input;
 
 impl PostCommanderPage {
-    pub fn render_query_editor(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn render_query_editor_content(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let colors = theme.colors();
         let panel_background = colors.panel_background;
@@ -29,6 +29,8 @@ impl PostCommanderPage {
         let is_loading = active_tab.map(|t| t.is_loading).unwrap_or(false);
 
         div()
+            .flex_1()
+            .min_w_0()
             .flex()
             .flex_col()
             .h(px(editor_height))

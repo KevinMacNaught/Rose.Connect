@@ -20,6 +20,10 @@ pub struct PostCommanderPage {
     pub(crate) is_resizing_editor: bool,
     pub(crate) resize_start_y: f32,
     pub(crate) resize_start_editor_height: f32,
+    pub(crate) structure_panel_width: f32,
+    pub(crate) is_resizing_structure: bool,
+    pub(crate) resize_structure_start_x: f32,
+    pub(crate) resize_structure_start_width: f32,
     pub(crate) tabs: Vec<QueryTab>,
     pub(crate) active_tab_id: Option<String>,
     pub(crate) db_manager: Arc<DatabaseManager>,
@@ -47,6 +51,7 @@ impl PostCommanderPage {
         let saved_expanded = pc_settings.expanded_nodes.clone();
         let saved_sidebar_width = pc_settings.sidebar_width;
         let saved_editor_height = pc_settings.editor_height;
+        let saved_structure_panel_width = pc_settings.structure_panel_width;
         let conn = saved_conn.clone().unwrap_or_default();
 
         let host_val = if conn.host.is_empty() { "localhost".to_string() } else { conn.host };
@@ -118,6 +123,10 @@ impl PostCommanderPage {
             is_resizing_editor: false,
             resize_start_y: 0.0,
             resize_start_editor_height: 0.0,
+            structure_panel_width: saved_structure_panel_width.unwrap_or(280.0),
+            is_resizing_structure: false,
+            resize_structure_start_x: 0.0,
+            resize_structure_start_width: 0.0,
             tabs: vec![],
             active_tab_id: None,
             db_manager: Arc::new(DatabaseManager::new()),
@@ -276,10 +285,12 @@ impl PostCommanderPage {
                                 let tab_id_for_pk = tab_id_clone.clone();
                                 let pk_rx = db_manager.fetch_primary_keys(schema.clone(), table.clone());
                                 let fk_rx = db_manager.fetch_foreign_keys(schema.clone(), table.clone());
+                                let struct_rx = db_manager.fetch_table_structure(schema.clone(), table.clone());
 
                                 cx.spawn(async move |this, cx| {
                                     let pk_result = pk_rx.await;
                                     let fk_result = fk_rx.await;
+                                    let struct_result = struct_rx.await;
 
                                     let _ = this.update(cx, |this, cx| {
                                         let primary_keys = match pk_result {
@@ -307,6 +318,12 @@ impl PostCommanderPage {
                                             tab.table_state.update(cx, |state, _cx| {
                                                 state.set_table_context(Some(context));
                                             });
+
+                                            if let Ok(Ok(structure)) = struct_result {
+                                                let key = format!("{}.{}", structure.schema, structure.table);
+                                                tab.table_structures = vec![structure];
+                                                tab.structure_expanded.insert(key, true);
+                                            }
                                         }
 
                                         cx.notify();
@@ -558,6 +575,13 @@ impl PostCommanderPage {
         AppSettings::get_global(cx).save();
     }
 
+    pub(crate) fn save_structure_panel_width(&self, cx: &mut Context<Self>) {
+        AppSettings::update_global(cx, |settings| {
+            settings.postcommander_mut().structure_panel_width = Some(self.structure_panel_width);
+        });
+        AppSettings::get_global(cx).save();
+    }
+
     fn fetch_schema_objects(&mut self, cx: &mut Context<Self>) {
         self.schemas_loading = true;
         cx.notify();
@@ -719,6 +743,7 @@ impl Render for PostCommanderPage {
         let show_dialog = self.show_connection_dialog;
         let is_resizing = self.is_resizing;
         let is_resizing_editor = self.is_resizing_editor;
+        let is_resizing_structure = self.is_resizing_structure;
         let show_cell_edit = self.cell_edit.is_some();
         let context_menu = self
             .context_menu
@@ -755,9 +780,16 @@ impl Render for PostCommanderPage {
                             .flex_col()
                             .child(self.render_tabs_bar(cx))
                             .when(has_tabs, |el| {
-                                el.child(self.render_query_editor(cx))
-                                    .child(self.render_editor_resize_handle(cx))
-                                    .child(self.render_results_area(cx))
+                                el.child(
+                                    div()
+                                        .flex()
+                                        .h(px(self.editor_height))
+                                        .child(self.render_query_editor_content(cx))
+                                        .child(self.render_structure_resize_handle(cx))
+                                        .child(self.render_structure_panel(cx)),
+                                )
+                                .child(self.render_editor_resize_handle(cx))
+                                .child(self.render_results_area(cx))
                             })
                             .when(!has_tabs, |el| el.child(self.render_empty_state(cx))),
                     ),
@@ -765,6 +797,7 @@ impl Render for PostCommanderPage {
             .when(show_dialog, |el| el.child(self.render_connection_dialog(cx)))
             .when(is_resizing, |el| el.child(self.render_resize_overlay(cx)))
             .when(is_resizing_editor, |el| el.child(self.render_editor_resize_overlay(cx)))
+            .when(is_resizing_structure, |el| el.child(self.render_structure_resize_overlay(cx)))
             .when_some(context_menu, |el, (menu, position)| {
                 let window_size = window.bounds().size;
                 el.child(

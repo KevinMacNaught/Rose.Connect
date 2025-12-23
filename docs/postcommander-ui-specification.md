@@ -276,18 +276,20 @@ This document tracks the implementation status of all PostCommander features. Ch
 
 ## 9. Structure Panel
 
-> **Status: ⬜ Not Started**
+> **Status: 🔶 Partially Implemented**
 
-- [ ] ⬜ Panel layout (right side of editor)
-- [ ] ⬜ Toggle button in toolbar
-- [ ] ⬜ Resizable width (15% - 40%)
+- [x] ✅ Panel layout (right side of editor, above results)
+- [x] ✅ Always visible (no toggle button)
+- [x] ✅ Resizable width via drag handle (200px - 500px)
+- [x] ✅ Persist width to settings
 
 ### List View
-- [ ] ⬜ Collapsible sections for each table in query
-- [ ] ⬜ Column list with name and type
-- [ ] ⬜ PK icon for primary key columns
-- [ ] ⬜ FK icon for foreign key columns
-- [ ] ⬜ FK tooltip showing referenced table.column
+- [x] ✅ Collapsible sections for each table in query
+- [x] ✅ Column list with name and type
+- [x] ✅ PK icon (key icon, gold/yellow) for primary key columns
+- [x] ✅ FK icon (link icon, accent color) for foreign key columns
+- [x] ✅ FK tooltip showing referenced table.column
+- [ ] ⬜ Search/filter columns
 
 ### Diagram View
 - [ ] ⬜ Visual boxes for tables
@@ -295,14 +297,20 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [ ] ⬜ Interactive (click to focus/open query)
 
 ### Query Parsing
-- [ ] ⬜ Parse SQL to extract tables from FROM/JOIN
-- [ ] ⬜ Support schema-qualified names
+- [x] ✅ Parse SQL to extract tables from SELECT
+- [x] ✅ Support schema-qualified names
 - [ ] ⬜ Support aliases
+- [ ] ⬜ Parse multiple tables from JOIN
 - [ ] ⬜ Debounce parsing (400ms)
 
+### Database Integration
+- [x] ✅ Fetch column metadata from information_schema
+- [x] ✅ Fetch primary key information
+- [x] ✅ Fetch foreign key information with references
+
 ### Empty State
-- [ ] ⬜ "Table structure appears here" message
-- [ ] ⬜ "Add FROM or JOIN to your query" hint
+- [x] ✅ "Run a query to see structure" message
+- [x] ✅ Loading state indicator
 
 ---
 
@@ -420,6 +428,9 @@ Current fields:
 ✅ result: Option<QueryResult>
 ✅ error: Option<String>
 ✅ is_loading: bool
+✅ table_structures: Vec<TableStructureInfo>
+✅ structure_loading: bool
+✅ structure_expanded: HashMap<String, bool>
 
 Missing fields:
 ⬜ connectionId: String
@@ -460,6 +471,7 @@ What persists (in settings):
 ✅ Expanded nodes
 ✅ Sidebar width
 ✅ Editor height
+✅ Structure panel width
 ⬜ Tab definitions (not persisted)
 
 What clears on reload:
@@ -467,6 +479,7 @@ What clears on reload:
 ✅ Execution state
 ✅ Schema data (re-fetched on expand)
 ✅ Cell editing state
+✅ Structure panel data (re-fetched on query execution)
 ```
 
 ---
@@ -484,6 +497,7 @@ What clears on reload:
 - SQL code editor with syntax highlighting
 - Cell editing with modal and UPDATE queries
 - Settings persistence (connection, expanded nodes, sizes)
+- Structure panel with column metadata, PK/FK indicators
 
 ### Priority Next Steps (Suggested Order)
 1. ~~**Keyboard shortcuts** (⌘↵ for execute at minimum)~~ ✅
@@ -493,7 +507,7 @@ What clears on reload:
 5. ~~**NULL display as em-dash**~~ ✅
 6. **Connection Name + SSL in dialog**
 7. **Tab persistence across reload**
-8. **Structure Panel**
+8. ~~**Structure Panel**~~ ✅ (basic implementation)
 9. **AI SQL Assistant**
 10. **Multi-connection support**
 

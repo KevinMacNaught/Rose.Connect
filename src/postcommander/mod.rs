@@ -5,6 +5,7 @@ mod export;
 mod page;
 mod results;
 mod sidebar;
+mod structure_panel;
 mod tabs;
 pub mod types;
 mod ui_helpers;

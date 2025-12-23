@@ -471,6 +471,42 @@ fn add_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
 }))
 ```
 
+### Gotcha: Input in Flex Row Layouts
+
+When placing an `Input` component inside a flex row (horizontal layout), the Input's container **must have explicit height**. Using only `flex_1()` for width while relying on flex for height can cause the Input to not render its content:
+
+```rust
+// BROKEN - Input content won't display
+div()
+    .flex()  // flex row
+    .h(px(200.))
+    .child(
+        div()
+            .flex_1()  // takes remaining width - OK
+            .flex()
+            .flex_col()
+            // Missing .h() - content disappears!
+            .child(Input::new(&editor))
+    )
+    .child(sidebar)
+
+// FIXED - explicitly set height on the Input's container
+div()
+    .flex()
+    .h(px(200.))
+    .child(
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .h(px(200.))  // Explicit height - required!
+            .child(Input::new(&editor).h(px(164.)))
+    )
+    .child(sidebar)
+```
+
+The Input component needs explicit dimensions to render properly. When the parent container doesn't constrain height through an explicit value (not just flex), the Input may have zero height and appear blank.
+
 ## Modal Dialog Event Propagation
 
 When creating modal dialogs, use `.occlude()` on the dialog panel to prevent clicks from propagating to the backdrop:

@@ -1,4 +1,4 @@
-use crate::postcommander::types::ForeignKeyInfo;
+use crate::postcommander::types::{ForeignKeyInfo, ForeignKeyRef, TableColumn, TableStructureInfo};
 use anyhow::Result;
 use gpui::SharedString;
 use sqlx::postgres::{PgPool, PgRow};
@@ -94,6 +94,11 @@ pub enum DatabaseCommand {
         referenced_column: String,
         value: String,
         response: tokio::sync::oneshot::Sender<Result<Vec<(String, String)>>>,
+    },
+    FetchTableStructure {
+        schema: String,
+        table: String,
+        response: tokio::sync::oneshot::Sender<Result<TableStructureInfo>>,
     },
 }
 
@@ -195,6 +200,14 @@ impl DatabaseManager {
                                 let _ = response.send(Err(anyhow::anyhow!("Not connected")));
                             }
                         }
+                        DatabaseCommand::FetchTableStructure { schema, table, response } => {
+                            if let Some(ref p) = pool {
+                                let result = fetch_table_structure(p, &schema, &table).await;
+                                let _ = response.send(result);
+                            } else {
+                                let _ = response.send(Err(anyhow::anyhow!("Not connected")));
+                            }
+                        }
                     }
                 }
             });
@@ -272,6 +285,20 @@ impl DatabaseManager {
             referenced_table,
             referenced_column,
             value,
+            response: tx,
+        });
+        rx
+    }
+
+    pub fn fetch_table_structure(
+        &self,
+        schema: String,
+        table: String,
+    ) -> tokio::sync::oneshot::Receiver<Result<TableStructureInfo>> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = self.command_tx.send(DatabaseCommand::FetchTableStructure {
+            schema,
+            table,
             response: tx,
         });
         rx
@@ -457,4 +484,96 @@ fn extract_cell_value(row: &PgRow, index: usize, type_name: &str) -> CellValue {
             .map(CellValue::Text)
             .unwrap_or(CellValue::Null),
     }
+}
+
+async fn fetch_table_structure(
+    pool: &PgPool,
+    schema: &str,
+    table: &str,
+) -> Result<TableStructureInfo> {
+    let sql = r#"
+        SELECT
+            c.column_name,
+            c.data_type,
+            c.is_nullable,
+            c.column_default,
+            CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_primary_key,
+            CASE WHEN fk.column_name IS NOT NULL THEN true ELSE false END as is_foreign_key,
+            fk.foreign_table_schema,
+            fk.foreign_table_name,
+            fk.foreign_column_name
+        FROM information_schema.columns c
+        LEFT JOIN (
+            SELECT ku.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage ku ON tc.constraint_name = ku.constraint_name
+                AND tc.table_schema = ku.table_schema
+            WHERE tc.table_schema = $1 AND tc.table_name = $2 AND tc.constraint_type = 'PRIMARY KEY'
+        ) pk ON c.column_name = pk.column_name
+        LEFT JOIN (
+            SELECT
+                kcu.column_name,
+                ccu.table_schema as foreign_table_schema,
+                ccu.table_name as foreign_table_name,
+                ccu.column_name as foreign_column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name
+            WHERE tc.table_schema = $1 AND tc.table_name = $2 AND tc.constraint_type = 'FOREIGN KEY'
+        ) fk ON c.column_name = fk.column_name
+        WHERE c.table_schema = $1 AND c.table_name = $2
+        ORDER BY c.ordinal_position
+    "#;
+
+    let rows: Vec<PgRow> = sqlx::query(sql)
+        .bind(schema)
+        .bind(table)
+        .fetch_all(pool)
+        .await?;
+
+    let columns: Vec<TableColumn> = rows
+        .iter()
+        .filter_map(|row| {
+            let name: String = row.try_get("column_name").ok()?;
+            let data_type: String = row.try_get("data_type").ok()?;
+            let is_nullable_str: String = row.try_get("is_nullable").ok()?;
+            let nullable = is_nullable_str == "YES";
+            let default_value: Option<String> = row.try_get("column_default").ok();
+            let is_primary_key: bool = row.try_get("is_primary_key").ok()?;
+            let is_foreign_key: bool = row.try_get("is_foreign_key").ok()?;
+
+            let references = if is_foreign_key {
+                let fk_schema: Option<String> = row.try_get("foreign_table_schema").ok();
+                let fk_table: Option<String> = row.try_get("foreign_table_name").ok();
+                let fk_column: Option<String> = row.try_get("foreign_column_name").ok();
+                match (fk_schema, fk_table, fk_column) {
+                    (Some(s), Some(t), Some(c)) => Some(ForeignKeyRef {
+                        schema: s,
+                        table: t,
+                        column: c,
+                    }),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            Some(TableColumn {
+                name,
+                data_type,
+                nullable,
+                default_value,
+                is_primary_key,
+                is_foreign_key,
+                references,
+            })
+        })
+        .collect();
+
+    Ok(TableStructureInfo {
+        schema: schema.to_string(),
+        table: table.to_string(),
+        columns,
+    })
 }

@@ -30,6 +30,8 @@ pub struct PostCommanderSettings {
     pub sidebar_width: Option<f32>,
     #[serde(default)]
     pub editor_height: Option<f32>,
+    #[serde(default)]
+    pub structure_panel_width: Option<f32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -110,6 +112,7 @@ impl AppSettings {
             expanded_nodes: None,
             sidebar_width: None,
             editor_height: None,
+            structure_panel_width: None,
         };
         self.postcommander.as_ref().unwrap_or(&DEFAULT)
     }

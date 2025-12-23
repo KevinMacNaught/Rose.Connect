@@ -3,6 +3,7 @@ use crate::postcommander::page::PostCommanderPage;
 use crate::postcommander::types::QueryTab;
 use gpui::*;
 use gpui_component::input::InputState;
+use std::collections::HashMap;
 
 impl PostCommanderPage {
     pub(crate) fn add_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -46,6 +47,9 @@ impl PostCommanderPage {
             error: None,
             is_loading: false,
             last_export_message: None,
+            table_structures: vec![],
+            structure_loading: false,
+            structure_expanded: HashMap::new(),
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
@@ -95,6 +99,9 @@ impl PostCommanderPage {
             error: None,
             is_loading: false,
             last_export_message: None,
+            table_structures: vec![],
+            structure_loading: false,
+            structure_expanded: HashMap::new(),
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
