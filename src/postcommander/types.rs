@@ -40,6 +40,7 @@ pub struct QueryTab {
     pub result: Option<QueryResult>,
     pub error: Option<String>,
     pub is_loading: bool,
+    pub last_export_message: Option<String>,
 }
 
 #[derive(Clone, PartialEq)]

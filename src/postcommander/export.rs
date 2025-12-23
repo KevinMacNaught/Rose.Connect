@@ -1,5 +1,8 @@
 use crate::postcommander::page::PostCommanderPage;
 use gpui::*;
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 impl PostCommanderPage {
     pub(crate) fn export_to_csv(&self, cx: &mut Context<Self>) -> Option<String> {
@@ -106,4 +109,101 @@ fn escape_json(s: &str) -> String {
 
 fn escape_markdown(s: &str) -> String {
     s.replace('|', "\\|").replace('\n', "<br>")
+}
+
+fn generate_timestamp() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "export".to_string())
+}
+
+fn sanitize_filename(s: &str) -> String {
+    s.replace('.', "_")
+        .replace(' ', "_")
+        .replace('/', "_")
+        .replace('\\', "_")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect()
+}
+
+fn generate_filename(tab_name: &str, extension: &str) -> String {
+    let base = sanitize_filename(tab_name);
+    let base = if base.is_empty() { "export".to_string() } else { base };
+    format!("{}_{}.{}", base, generate_timestamp(), extension)
+}
+
+fn save_to_file(content: &str, filename: &str) -> Result<PathBuf, String> {
+    let downloads = dirs::download_dir()
+        .ok_or_else(|| "Could not find Downloads folder".to_string())?;
+
+    let path = downloads.join(filename);
+
+    fs::write(&path, content)
+        .map_err(|e| format!("Failed to save: {}", e))?;
+
+    Ok(path)
+}
+
+impl PostCommanderPage {
+    pub(crate) fn save_csv_to_file(&mut self, cx: &mut Context<Self>) -> Result<String, String> {
+        let csv_content = self.export_to_csv(cx)
+            .ok_or_else(|| "No data to export".to_string())?;
+
+        let tab_name = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .map(|t| t.name.as_str())
+            .unwrap_or("export");
+
+        let filename = generate_filename(tab_name, "csv");
+        let path = save_to_file(&csv_content, &filename)?;
+
+        let message = format!("Saved to {}", path.display());
+        self.set_export_message(&message, cx);
+        Ok(message)
+    }
+
+    pub(crate) fn save_json_to_file(&mut self, cx: &mut Context<Self>) -> Result<String, String> {
+        let json_content = self.export_to_json(cx)
+            .ok_or_else(|| "No data to export".to_string())?;
+
+        let tab_name = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .map(|t| t.name.as_str())
+            .unwrap_or("export");
+
+        let filename = generate_filename(tab_name, "json");
+        let path = save_to_file(&json_content, &filename)?;
+
+        let message = format!("Saved to {}", path.display());
+        self.set_export_message(&message, cx);
+        Ok(message)
+    }
+
+    pub(crate) fn save_markdown_to_file(&mut self, cx: &mut Context<Self>) -> Result<String, String> {
+        let md_content = self.export_to_markdown(cx)
+            .ok_or_else(|| "No data to export".to_string())?;
+
+        let tab_name = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .map(|t| t.name.as_str())
+            .unwrap_or("export");
+
+        let filename = generate_filename(tab_name, "md");
+        let path = save_to_file(&md_content, &filename)?;
+
+        let message = format!("Saved to {}", path.display());
+        self.set_export_message(&message, cx);
+        Ok(message)
+    }
+
+    fn set_export_message(&mut self, message: &str, cx: &mut Context<Self>) {
+        if let Some(tab_id) = &self.active_tab_id {
+            if let Some(tab) = self.tabs.iter_mut().find(|t| &t.id == tab_id) {
+                tab.last_export_message = Some(message.to_string());
+                cx.notify();
+            }
+        }
+    }
 }

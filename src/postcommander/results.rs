@@ -574,11 +574,24 @@ impl PostCommanderPage {
                     }),
             )
             .child(div().flex_1())
+            .child(self.render_export_message(text_muted, cx))
             .child(
                 div()
                     .text_xs()
                     .text_color(rgb(text_muted))
                     .child("v0.1.0"),
             )
+    }
+
+    fn render_export_message(&self, text_muted: u32, _cx: &mut Context<Self>) -> impl IntoElement {
+        let export_msg = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .and_then(|tab| tab.last_export_message.clone());
+
+        div()
+            .text_xs()
+            .text_color(rgb(text_muted))
+            .mr_4()
+            .when_some(export_msg, |el, msg| el.child(msg))
     }
 }

@@ -13,3 +13,4 @@ anyhow = "1.0"
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "tls-rustls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
 unicode-segmentation = "1.12.0"
+dirs = "6"

@@ -43,6 +43,7 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            last_export_message: None,
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
@@ -89,6 +90,7 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            last_export_message: None,
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);

@@ -334,45 +334,90 @@ impl PostCommanderPage {
     ) {
         use gpui_component::menu::PopupMenuItem;
 
-        let entity = cx.entity().downgrade();
-        let entity2 = cx.entity().downgrade();
-        let entity3 = cx.entity().downgrade();
+        let e_save_csv = cx.entity().downgrade();
+        let e_save_json = cx.entity().downgrade();
+        let e_save_md = cx.entity().downgrade();
+        let e_copy_csv = cx.entity().downgrade();
+        let e_copy_json = cx.entity().downgrade();
+        let e_copy_md = cx.entity().downgrade();
 
         let menu = PopupMenu::build(window, cx, move |menu, _window, _cx| {
-            let e1 = entity.clone();
-            let e2 = entity2.clone();
-            let e3 = entity3.clone();
-
             menu.item(
-                PopupMenuItem::new("Copy as CSV").on_click(move |_, _window, cx| {
-                    if let Some(page) = e1.upgrade() {
-                        page.update(cx, |page, cx| {
-                            if let Some(csv) = page.export_to_csv(cx) {
-                                page.copy_to_clipboard(csv, cx);
-                            }
-                        });
+                PopupMenuItem::new("Save as CSV").on_click({
+                    let entity = e_save_csv.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                let _ = page.save_csv_to_file(cx);
+                            });
+                        }
                     }
                 }),
             )
             .item(
-                PopupMenuItem::new("Copy as JSON").on_click(move |_, _window, cx| {
-                    if let Some(page) = e2.upgrade() {
-                        page.update(cx, |page, cx| {
-                            if let Some(json) = page.export_to_json(cx) {
-                                page.copy_to_clipboard(json, cx);
-                            }
-                        });
+                PopupMenuItem::new("Save as JSON").on_click({
+                    let entity = e_save_json.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                let _ = page.save_json_to_file(cx);
+                            });
+                        }
                     }
                 }),
             )
             .item(
-                PopupMenuItem::new("Copy as Markdown").on_click(move |_, _window, cx| {
-                    if let Some(page) = e3.upgrade() {
-                        page.update(cx, |page, cx| {
-                            if let Some(md) = page.export_to_markdown(cx) {
-                                page.copy_to_clipboard(md, cx);
-                            }
-                        });
+                PopupMenuItem::new("Save as Markdown").on_click({
+                    let entity = e_save_md.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                let _ = page.save_markdown_to_file(cx);
+                            });
+                        }
+                    }
+                }),
+            )
+            .separator()
+            .item(
+                PopupMenuItem::new("Copy as CSV").on_click({
+                    let entity = e_copy_csv.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                if let Some(csv) = page.export_to_csv(cx) {
+                                    page.copy_to_clipboard(csv, cx);
+                                }
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy as JSON").on_click({
+                    let entity = e_copy_json.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                if let Some(json) = page.export_to_json(cx) {
+                                    page.copy_to_clipboard(json, cx);
+                                }
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy as Markdown").on_click({
+                    let entity = e_copy_md.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                if let Some(md) = page.export_to_markdown(cx) {
+                                    page.copy_to_clipboard(md, cx);
+                                }
+                            });
+                        }
                     }
                 }),
             )
