@@ -71,7 +71,7 @@ impl MainLayout {
     fn render_icon_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let colors = theme.colors();
-        let shell_bg = colors.element;
+        let sidebar_bg = colors.panel_background;
         let sidebar_item_hover = colors.element_hover;
         let sidebar_item_selected = colors.element_active;
         let text_color = colors.text;
@@ -125,18 +125,17 @@ impl MainLayout {
         div()
             .w(px(52.))
             .h_full()
-            .bg(rgb(shell_bg))
+            .bg(rgb(sidebar_bg))
             .border_r_1()
             .border_color(rgb(border_variant))
             .flex()
             .flex_col()
             .items_center()
-            .pt(px(TITLEBAR_HEIGHT))
+            .py_2()
             .gap_1()
             .children(nav_items)
             .child(div().flex_1())
             .child(settings_icon)
-            .pb_2()
     }
 
     fn render_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -155,7 +154,7 @@ impl MainLayout {
             .flex()
             .items_center()
             .justify_between()
-            .pl(px(70.))
+            .pl(px(90.))
             .pr_4()
             .child(
                 div()
@@ -200,18 +199,18 @@ impl Render for MainLayout {
         div()
             .size_full()
             .flex()
-            .child(self.render_icon_sidebar(cx))
+            .flex_col()
+            .child(self.render_header(cx))
             .child(
                 div()
                     .flex_1()
-                    .min_w_0()
-                    .h_full()
+                    .min_h_0()
                     .flex()
-                    .flex_col()
-                    .child(self.render_header(cx))
+                    .child(self.render_icon_sidebar(cx))
                     .child(
                         div()
                             .flex_1()
+                            .min_w_0()
                             .min_h_0()
                             .bg(rgb(background))
                             .child(match self.current_view {
@@ -220,8 +219,8 @@ impl Render for MainLayout {
                                 CurrentView::Components => self.components_test.clone().into_any_element(),
                                 CurrentView::PostCommander => self.postcommander_page.clone().into_any_element(),
                             }),
-                    )
-                    .child(self.render_footer(cx)),
+                    ),
             )
+            .child(self.render_footer(cx))
     }
 }
