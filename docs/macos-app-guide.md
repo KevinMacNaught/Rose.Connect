@@ -195,3 +195,45 @@ div()
 **Why separate window vs modal:**
 - Modals close when `cx.refresh_windows()` is called (theme changes trigger this)
 - Separate windows persist and update their theme automatically
+
+## Singleton Window Pattern
+
+To prevent multiple instances of a window (e.g., settings), track the window handle globally:
+
+```rust
+struct SettingsWindowHandle(Option<WindowHandle<SettingsWindow>>);
+
+impl Global for SettingsWindowHandle {}
+
+pub fn open_settings_window(cx: &mut App) {
+    // Check if window already exists and is still open
+    if let Some(handle) = cx.try_global::<SettingsWindowHandle>() {
+        if let Some(window_handle) = handle.0 {
+            // update() returns Err if window was closed
+            if window_handle
+                .update(cx, |_, window, _| {
+                    window.activate_window();  // Bring to front
+                })
+                .is_ok()
+            {
+                return;  // Window exists, focused it
+            }
+        }
+    }
+
+    // Create new window
+    let window_handle = cx
+        .open_window(options, |_window, cx| {
+            cx.new(|_| SettingsWindow::new())
+        })
+        .unwrap();
+
+    // Store handle for future checks
+    cx.set_global(SettingsWindowHandle(Some(window_handle)));
+}
+```
+
+**How it works:**
+- `WindowHandle::update()` returns `Err` if the window has been closed
+- Use `try_global()` since the global may not exist on first open
+- `window.activate_window()` brings an existing window to the front

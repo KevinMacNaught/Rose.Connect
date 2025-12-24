@@ -4,6 +4,10 @@ use crate::theme::{ActiveTheme, GlobalTheme, ThemeMeta, ThemeRegistry};
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 
+struct SettingsWindowHandle(Option<WindowHandle<SettingsWindow>>);
+
+impl Global for SettingsWindowHandle {}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SettingsSection {
     General,
@@ -511,6 +515,19 @@ impl Render for SettingsWindow {
 }
 
 pub fn open_settings_window(cx: &mut App) {
+    if let Some(handle) = cx.try_global::<SettingsWindowHandle>() {
+        if let Some(window_handle) = handle.0 {
+            if window_handle
+                .update(cx, |_, window, _| {
+                    window.activate_window();
+                })
+                .is_ok()
+            {
+                return;
+            }
+        }
+    }
+
     let options = WindowOptions {
         titlebar: Some(TitlebarOptions {
             title: Some("Settings".into()),
@@ -526,11 +543,14 @@ pub fn open_settings_window(cx: &mut App) {
         ..Default::default()
     };
 
-    cx.open_window(options, |_window, cx| {
-        let registry = ThemeRegistry::global(cx);
-        let themes = registry.list();
-        let current_theme = AppSettings::get_global(cx).theme_name.clone();
-        cx.new(|_| SettingsWindow::from_data(themes, &current_theme))
-    })
-    .unwrap();
+    let window_handle = cx
+        .open_window(options, |_window, cx| {
+            let registry = ThemeRegistry::global(cx);
+            let themes = registry.list();
+            let current_theme = AppSettings::get_global(cx).theme_name.clone();
+            cx.new(|_| SettingsWindow::from_data(themes, &current_theme))
+        })
+        .unwrap();
+
+    cx.set_global(SettingsWindowHandle(Some(window_handle)));
 }

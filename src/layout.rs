@@ -4,6 +4,7 @@ use crate::icons_page::IconsPage;
 use crate::kanban::KanbanBoard;
 use crate::postcommander::PostCommanderPage;
 use crate::settings::{AppSettings, WindowBoundsSettings};
+use crate::settings_window::open_settings_window;
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
@@ -119,6 +120,7 @@ impl MainLayout {
             .rounded_md()
             .hover(move |s| s.bg(rgb(sidebar_item_hover)))
             .cursor_pointer()
+            .on_click(|_, _, cx| open_settings_window(cx))
             .child(icon_md("settings", text_muted))
             .tooltip(move |window, cx| Tooltip::new("Settings").build(window, cx));
 
