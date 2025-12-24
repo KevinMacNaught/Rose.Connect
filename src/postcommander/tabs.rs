@@ -147,9 +147,18 @@ impl PostCommanderPage {
     }
 
     pub(crate) fn close_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
+        let closed_index = self.tabs.iter().position(|t| t.id == tab_id);
         self.tabs.retain(|t| t.id != tab_id);
         if self.active_tab_id.as_deref() == Some(tab_id) {
-            self.active_tab_id = self.tabs.last().map(|t| t.id.clone());
+            self.active_tab_id = closed_index
+                .and_then(|i| {
+                    if i > 0 {
+                        self.tabs.get(i - 1)
+                    } else {
+                        self.tabs.first()
+                    }
+                })
+                .map(|t| t.id.clone());
         }
         cx.notify();
     }

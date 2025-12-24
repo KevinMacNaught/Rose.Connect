@@ -352,8 +352,10 @@ impl PostCommanderPage {
                             .when(!is_active, |el| el.border_color(transparent_black()))
                             .hover(move |s| s.bg(rgb(element_hover)))
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                this.active_tab_id = Some(tab_id.clone());
-                                cx.notify();
+                                if this.tabs.iter().any(|t| t.id == tab_id) {
+                                    this.active_tab_id = Some(tab_id.clone());
+                                    cx.notify();
+                                }
                             }))
                             .child(
                                 div()
