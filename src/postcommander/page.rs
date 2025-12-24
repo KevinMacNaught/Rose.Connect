@@ -1,13 +1,18 @@
 use crate::components::{DataTableColumn, DataTableState, FkDataRequest, TextInput};
 use crate::postcommander::database::{ConnectionConfig, DatabaseManager};
-use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TableContext};
+use crate::postcommander::sql_completion::SqlCompletionProvider;
+use crate::postcommander::sql_format::format_sql;
+use crate::postcommander::sql_safety::{analyze_sql, SqlDangerLevel};
+use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TableContext, TableStructureInfo};
 use crate::postcommander::ui_helpers::parse_table_from_select;
 use crate::settings::{AppSettings, ConnectionSettings};
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 use gpui_component::menu::PopupMenu;
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,6 +46,12 @@ pub struct PostCommanderPage {
     pub(crate) cell_edit: Option<CellEditState>,
     pub(crate) export_menu: Option<(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, Subscription)>,
     pub(crate) _subscriptions: Vec<Subscription>,
+    pub(crate) completion_provider: Rc<SqlCompletionProvider>,
+    pub(crate) completion_schemas: Rc<RefCell<SchemaMap>>,
+    pub(crate) completion_structures: Rc<RefCell<Vec<TableStructureInfo>>>,
+    pub(crate) safety_warning: Option<(SqlDangerLevel, String)>,
+    pub(crate) pending_capitalization: Option<(String, usize, usize, String)>,
+    pub(crate) pending_undo_newline: Option<String>,
 }
 
 impl PostCommanderPage {
@@ -114,6 +125,10 @@ impl PostCommanderPage {
         })
         .detach();
 
+        let completion_provider = Rc::new(SqlCompletionProvider::new());
+        let completion_schemas = completion_provider.schemas_ref();
+        let completion_structures = completion_provider.table_structures_ref();
+
         Self {
             sidebar_width: saved_sidebar_width.unwrap_or(240.0),
             is_resizing: false,
@@ -150,6 +165,12 @@ impl PostCommanderPage {
             cell_edit: None,
             export_menu: None,
             _subscriptions: vec![],
+            completion_provider,
+            completion_schemas,
+            completion_structures,
+            safety_warning: None,
+            pending_capitalization: None,
+            pending_undo_newline: None,
         }
     }
 
@@ -234,6 +255,20 @@ impl PostCommanderPage {
     }
 
     pub(crate) fn execute_query(&mut self, cx: &mut Context<Self>) {
+        self.execute_query_internal(false, cx);
+    }
+
+    pub(crate) fn execute_query_force(&mut self, cx: &mut Context<Self>) {
+        self.safety_warning = None;
+        self.execute_query_internal(true, cx);
+    }
+
+    pub(crate) fn cancel_dangerous_query(&mut self, cx: &mut Context<Self>) {
+        self.safety_warning = None;
+        cx.notify();
+    }
+
+    fn execute_query_internal(&mut self, force: bool, cx: &mut Context<Self>) {
         let Some(tab_id) = self.active_tab_id.clone() else {
             return;
         };
@@ -242,9 +277,23 @@ impl PostCommanderPage {
             return;
         };
 
-        let sql = tab.editor.read(cx).value().to_string();
-        if sql.trim().is_empty() {
+        let raw_sql = tab.editor.read(cx).value().to_string();
+        if raw_sql.trim().is_empty() {
             return;
+        }
+
+        let sql = format_sql(&raw_sql);
+
+        if !force {
+            let danger_level = analyze_sql(&sql);
+            match danger_level {
+                SqlDangerLevel::Safe => {}
+                SqlDangerLevel::Warning(ref msg) | SqlDangerLevel::Dangerous(ref msg) => {
+                    self.safety_warning = Some((danger_level.clone(), msg.clone()));
+                    cx.notify();
+                    return;
+                }
+            }
         }
 
         tab.is_loading = true;
@@ -321,8 +370,9 @@ impl PostCommanderPage {
 
                                             if let Ok(Ok(structure)) = struct_result {
                                                 let key = format!("{}.{}", structure.schema, structure.table);
-                                                tab.table_structures = vec![structure];
+                                                tab.table_structures = vec![structure.clone()];
                                                 tab.structure_expanded.insert(key, true);
+                                                *this.completion_structures.borrow_mut() = vec![structure];
                                             }
                                         }
 
@@ -620,9 +670,11 @@ impl PostCommanderPage {
                                 }
                             }
                         }
+                        *this.completion_schemas.borrow_mut() = schemas.clone();
                         this.schemas = schemas;
                     }
                     _ => {
+                        *this.completion_schemas.borrow_mut() = SchemaMap::new();
                         this.schemas = SchemaMap::new();
                     }
                 }
@@ -731,10 +783,143 @@ impl PostCommanderPage {
                 }),
             )
     }
+
+    fn render_safety_warning_dialog(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let colors = theme.colors();
+
+        let Some((danger_level, message)) = &self.safety_warning else {
+            return div().into_any_element();
+        };
+
+        let is_dangerous = matches!(danger_level, SqlDangerLevel::Dangerous(_));
+        let title = if is_dangerous { "Dangerous Query" } else { "Warning" };
+        let icon_color = if is_dangerous { colors.status_error } else { colors.status_warning };
+
+        div()
+            .id("safety-warning-overlay")
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(rgba(0x00000080))
+            .on_mouse_down(MouseButton::Left, |_, _, _| {})
+            .child(
+                div()
+                    .w(px(420.0))
+                    .bg(rgb(colors.surface))
+                    .border_1()
+                    .border_color(rgb(colors.border))
+                    .rounded_lg()
+                    .shadow_lg()
+                    .p_4()
+                    .flex()
+                    .flex_col()
+                    .gap_4()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                crate::icons::icon("alert-triangle", px(24.0), icon_color)
+                            )
+                            .child(
+                                div()
+                                    .text_lg()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(rgb(colors.text))
+                                    .child(title)
+                            )
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(rgb(colors.text_muted))
+                            .child(message.clone())
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .id("cancel-btn")
+                                    .px_3()
+                                    .py_1p5()
+                                    .rounded_md()
+                                    .bg(rgb(colors.element))
+                                    .text_sm()
+                                    .text_color(rgb(colors.text))
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(rgb(colors.element_hover)))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.cancel_dangerous_query(cx);
+                                    }))
+                                    .child("Cancel")
+                            )
+                            .child(
+                                div()
+                                    .id("proceed-btn")
+                                    .px_3()
+                                    .py_1p5()
+                                    .rounded_md()
+                                    .bg(rgb(icon_color))
+                                    .text_sm()
+                                    .text_color(rgb(colors.accent_foreground))
+                                    .cursor_pointer()
+                                    .hover(|s| s.opacity(0.9))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.execute_query_force(cx);
+                                    }))
+                                    .child("Execute Anyway")
+                            )
+                    )
+            )
+            .into_any_element()
+    }
 }
 
 impl Render for PostCommanderPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some((tab_id, start, end, replacement)) = self.pending_capitalization.take() {
+            if let Some(tab) = self.tabs.iter().find(|t| t.id == tab_id) {
+                tab.editor.update(cx, |editor, cx| {
+                    let text = editor.value().to_string();
+                    let cursor = text.len();
+                    if start < text.len() && end <= text.len() {
+                        let new_text = format!("{}{}{}", &text[..start], replacement, &text[end..]);
+                        editor.set_value(new_text, window, cx);
+                        editor.set_cursor_position(
+                            gpui_component::input::Position { line: 0, character: cursor as u32 },
+                            window,
+                            cx,
+                        );
+                    }
+                });
+            }
+        }
+
+        if let Some(tab_id) = self.pending_undo_newline.take() {
+            if let Some(tab) = self.tabs.iter().find(|t| t.id == tab_id) {
+                tab.editor.update(cx, |editor, cx| {
+                    let text = editor.value().to_string();
+                    if text.ends_with('\n') {
+                        let new_text = text.trim_end_matches('\n').to_string();
+                        let cursor = new_text.len();
+                        editor.set_value(new_text, window, cx);
+                        editor.set_cursor_position(
+                            gpui_component::input::Position { line: 0, character: cursor as u32 },
+                            window,
+                            cx,
+                        );
+                    }
+                });
+            }
+        }
+
         let theme = cx.theme();
         let colors = theme.colors();
         let background = colors.background;
@@ -745,6 +930,7 @@ impl Render for PostCommanderPage {
         let is_resizing_editor = self.is_resizing_editor;
         let is_resizing_structure = self.is_resizing_structure;
         let show_cell_edit = self.cell_edit.is_some();
+        let show_safety_warning = self.safety_warning.is_some();
         let context_menu = self
             .context_menu
             .as_ref()
@@ -840,6 +1026,9 @@ impl Render for PostCommanderPage {
                     )
                     .with_priority(1),
                 )
+            })
+            .when(show_safety_warning, |el| {
+                el.child(deferred(self.render_safety_warning_dialog(cx)).with_priority(3))
             })
     }
 }

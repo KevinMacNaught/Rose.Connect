@@ -152,9 +152,22 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [ ] ⬜ Structure panel toggle button
 
 ### Editor Enhancements
-- [ ] ⬜ SQL keyword auto-capitalization
-- [ ] ⬜ Dangerous SQL detection warning (DROP, DELETE without WHERE, TRUNCATE)
-- [ ] ⬜ Connection-aware autocomplete
+- [x] ✅ SQL keyword auto-capitalization (on execute - formats SQL before running)
+- [x] ✅ Dangerous SQL detection warning (DROP, DELETE without WHERE, TRUNCATE, ALTER...DROP)
+- [x] ✅ Connection-aware autocomplete (tables, views, columns from loaded schemas)
+
+### SQL Autocomplete Details
+- [x] ✅ Context-aware suggestions (after SELECT shows columns/functions, after FROM shows tables)
+- [x] ✅ Schema.table support (type `public.` to see tables in public schema)
+- [x] ✅ Table.column support (type `tablename.` to see columns)
+- [x] ✅ Filtering as you type (completions update with each keystroke)
+- [x] ✅ PK/FK indicators in completion details
+- [x] ✅ Accept completion with Enter key (not Tab)
+
+### SQL Safety Detection
+- [x] ✅ Warning level: DELETE without WHERE, UPDATE without WHERE
+- [x] ✅ Dangerous level: DROP, TRUNCATE, ALTER...DROP
+- [x] ✅ Confirmation dialog before executing dangerous queries
 
 ---
 

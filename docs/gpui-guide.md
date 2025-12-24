@@ -507,6 +507,90 @@ div()
 
 The Input component needs explicit dimensions to render properly. When the parent container doesn't constrain height through an explicit value (not just flex), the Input may have zero height and appear blank.
 
+### Custom Autocomplete with CompletionProvider
+
+gpui-component's Input has a built-in completion system. To add custom autocomplete (e.g., SQL tables/columns):
+
+```rust
+use gpui_component::input::{CompletionProvider, InputState};
+use gpui_component::Rope;
+use lsp_types::{CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse};
+
+pub struct MyCompletionProvider {
+    // Your data (schemas, tables, etc.)
+}
+
+impl CompletionProvider for MyCompletionProvider {
+    fn completions(
+        &self,
+        text: &Rope,
+        offset: usize,
+        _trigger: CompletionContext,
+        _window: &mut gpui::Window,
+        _cx: &mut Context<InputState>,
+    ) -> Task<Result<CompletionResponse>> {
+        let text_str = text.to_string();
+        // Parse context, filter items based on cursor position
+        let items = vec![
+            CompletionItem {
+                label: "my_table".to_string(),
+                kind: Some(CompletionItemKind::CLASS),
+                detail: Some("Table".to_string()),
+                sort_text: Some("1_my_table".to_string()),
+                ..Default::default()
+            },
+        ];
+        Task::ready(Ok(CompletionResponse::Array(items)))
+    }
+
+    fn is_completion_trigger(
+        &self,
+        _offset: usize,
+        new_text: &str,
+        _cx: &mut Context<InputState>,
+    ) -> bool {
+        // Return true to trigger completions when this character is typed
+        if new_text.is_empty() { return false; }
+        let c = new_text.chars().next().unwrap();
+        // Trigger on dot, space, or any alphanumeric (for filtering as user types)
+        c == '.' || c == ' ' || c.is_alphanumeric() || c == '_'
+    }
+}
+```
+
+**Wire up the provider:**
+```rust
+use std::rc::Rc;
+
+let provider = Rc::new(MyCompletionProvider::new());
+
+editor.update(cx, |editor, _cx| {
+    editor.lsp.completion_provider = Some(
+        Rc::clone(&provider) as Rc<dyn CompletionProvider>
+    );
+});
+```
+
+**Key gotchas:**
+
+1. **Trigger on alphanumeric chars** - If `is_completion_trigger` only returns true for special chars like `.`, completions won't update as the user types. Include alphanumeric to keep filtering active.
+
+2. **Filter items yourself** - The provider must return pre-filtered items. The completion menu displays what you return without additional filtering.
+
+3. **Completion acceptance key is Enter** - Tab does not accept completions by default, only Enter.
+
+4. **Use `Rc<RefCell<>>` for mutable data** - If your completion data changes (e.g., schemas loaded async), wrap in RefCell:
+   ```rust
+   pub struct SqlCompletionProvider {
+       schemas: Rc<RefCell<SchemaMap>>,
+   }
+   ```
+
+5. **lsp-types dependency** - Add to Cargo.toml:
+   ```toml
+   lsp-types = { version = "0.97.0", features = ["proposed"] }
+   ```
+
 ## Modal Dialog Event Propagation
 
 When creating modal dialogs, use `.occlude()` on the dialog panel to prevent clicks from propagating to the backdrop:
