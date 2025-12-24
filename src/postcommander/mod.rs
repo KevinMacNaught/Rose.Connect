@@ -1,8 +1,11 @@
 mod cell_edit;
 mod connection_dialog;
 pub mod database;
+mod dialogs;
 mod export;
 mod page;
+mod query_execution;
+mod resize_handlers;
 mod results;
 mod sidebar;
 mod sql_completion;

@@ -3,6 +3,23 @@ use crate::postcommander::database::QueryResult;
 use gpui::{Entity, SharedString};
 use gpui_component::input::InputState;
 use std::collections::HashMap;
+use std::sync::Arc;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct TabId(u64);
+
+impl TabId {
+    pub fn new() -> Self {
+        static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        Self(NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl std::fmt::Display for TabId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ForeignKeyInfo {
@@ -42,7 +59,7 @@ pub struct TableContext {
     pub schema: String,
     pub table: String,
     pub primary_keys: Vec<String>,
-    pub foreign_keys: HashMap<String, ForeignKeyInfo>,
+    pub foreign_keys: Arc<HashMap<String, ForeignKeyInfo>>,
 }
 
 impl TableContext {
@@ -65,7 +82,7 @@ pub struct CellEditState {
 
 #[derive(Clone)]
 pub struct QueryTab {
-    pub id: String,
+    pub id: TabId,
     pub name: String,
     pub database: String,
     pub editor: Entity<InputState>,

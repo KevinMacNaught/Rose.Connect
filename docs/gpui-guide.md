@@ -1425,7 +1425,7 @@ let visible_rows: Vec<_> = (first_visible_row..last_visible_row)
 ### See Also
 
 - `src/scroll_test.rs` - Isolated test page demonstrating this pattern
-- `src/components/data_table.rs` - DataTable component using manual scroll
+- `src/components/data_table/` - DataTable component using manual scroll
 
 ## Column Resizing with Drag (IMPORTANT GOTCHA)
 
@@ -1527,7 +1527,7 @@ impl Render for DraggedColumnResize {
 
 ### See Also
 
-- `src/components/data_table.rs` - Working column resize implementation
+- `src/components/data_table/resize.rs` - Working column resize implementation
 
 ## Draggable Popup Cards
 
@@ -1685,4 +1685,4 @@ canvas(
 
 ### See Also
 
-- `src/components/data_table.rs` - FK card implementation with dragging
+- `src/components/data_table/fk_card.rs` - FK card implementation with dragging

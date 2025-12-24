@@ -51,8 +51,22 @@ pub struct KanbanBoard {
 impl KanbanBoard {
     pub fn load(_cx: &mut Context<Self>) -> Self {
         let json_path = "data/kanban.json";
-        let json_str = fs::read_to_string(json_path).expect("Failed to read kanban.json");
-        let data: KanbanData = serde_json::from_str(&json_str).expect("Failed to parse JSON");
+
+        let data = match fs::read_to_string(json_path) {
+            Ok(json_str) => match serde_json::from_str::<KanbanData>(&json_str) {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Failed to parse kanban.json: {}", e);
+                    eprintln!("Using default empty kanban data");
+                    Self::default_data()
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to read kanban.json: {}", e);
+                eprintln!("Using default empty kanban data");
+                Self::default_data()
+            }
+        };
 
         Self {
             columns: data
@@ -81,6 +95,31 @@ impl KanbanBoard {
                         .collect(),
                 })
                 .collect(),
+        }
+    }
+
+    fn default_data() -> KanbanData {
+        KanbanData {
+            columns: vec![
+                ColumnData {
+                    id: "todo".to_string(),
+                    title: "To Do".to_string(),
+                    color: "0xe5e7eb".to_string(),
+                    cards: vec![],
+                },
+                ColumnData {
+                    id: "in_progress".to_string(),
+                    title: "In Progress".to_string(),
+                    color: "0x3b82f6".to_string(),
+                    cards: vec![],
+                },
+                ColumnData {
+                    id: "done".to_string(),
+                    title: "Done".to_string(),
+                    color: "0x10b981".to_string(),
+                    cards: vec![],
+                },
+            ],
         }
     }
 

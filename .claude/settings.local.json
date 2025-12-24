@@ -21,7 +21,11 @@
       "Bash(grep:*)",
       "Bash(wc:*)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(tokei:*)",
+      "Bash(tree:*)",
+      "Bash(mkdir:*)",
+      "Bash(tee:*)"
     ]
   }
 }

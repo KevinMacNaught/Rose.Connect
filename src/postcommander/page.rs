@@ -1,10 +1,8 @@
-use crate::components::{DataTableColumn, DataTableState, FkDataRequest, TextInput};
+use crate::components::TextInput;
 use crate::postcommander::database::{ConnectionConfig, DatabaseManager};
 use crate::postcommander::sql_completion::SqlCompletionProvider;
-use crate::postcommander::sql_format::format_sql;
-use crate::postcommander::sql_safety::{analyze_sql, SqlDangerLevel};
-use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TableContext, TableStructureInfo};
-use crate::postcommander::ui_helpers::parse_table_from_select;
+use crate::postcommander::sql_safety::SqlDangerLevel;
+use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TabId, TableStructureInfo};
 use crate::settings::{AppSettings, ConnectionSettings};
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
@@ -14,7 +12,6 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
 
 pub struct PostCommanderPage {
     pub(crate) sidebar_width: f32,
@@ -30,7 +27,7 @@ pub struct PostCommanderPage {
     pub(crate) resize_structure_start_x: f32,
     pub(crate) resize_structure_start_width: f32,
     pub(crate) tabs: Vec<QueryTab>,
-    pub(crate) active_tab_id: Option<String>,
+    pub(crate) active_tab_id: Option<TabId>,
     pub(crate) db_manager: Arc<DatabaseManager>,
     pub(crate) connection_state: ConnectionState,
     pub(crate) show_connection_dialog: bool,
@@ -40,7 +37,7 @@ pub struct PostCommanderPage {
     pub(crate) input_username: Entity<TextInput>,
     pub(crate) input_password: Entity<TextInput>,
     pub(crate) expanded_nodes: HashSet<String>,
-    pub(crate) schemas: SchemaMap,
+    pub(crate) schemas: Arc<SchemaMap>,
     pub(crate) schemas_loading: bool,
     pub(crate) context_menu: Option<(Entity<PopupMenu>, Point<Pixels>, String, Subscription)>,
     pub(crate) cell_edit: Option<CellEditState>,
@@ -50,8 +47,18 @@ pub struct PostCommanderPage {
     pub(crate) completion_schemas: Rc<RefCell<SchemaMap>>,
     pub(crate) completion_structures: Rc<RefCell<Vec<TableStructureInfo>>>,
     pub(crate) safety_warning: Option<(SqlDangerLevel, String)>,
-    pub(crate) pending_capitalization: Option<(String, usize, usize, String)>,
-    pub(crate) pending_undo_newline: Option<String>,
+    pub(crate) pending_capitalization: Option<(TabId, usize, usize, String)>,
+    pub(crate) pending_undo_newline: Option<TabId>,
+    cached_connection: ConnectionInfo,
+}
+
+#[derive(Default, Clone)]
+struct ConnectionInfo {
+    host: String,
+    port: String,
+    database: String,
+    username: String,
+    password: String,
 }
 
 impl PostCommanderPage {
@@ -75,6 +82,14 @@ impl PostCommanderPage {
             && !host_val.is_empty()
             && !database_val.is_empty()
             && !username_val.is_empty();
+
+        let cached_connection = ConnectionInfo {
+            host: host_val.clone(),
+            port: port_val.clone(),
+            database: database_val.clone(),
+            username: username_val.clone(),
+            password: password_val.clone(),
+        };
 
         let input_host = cx.new(|cx| {
             let mut input = TextInput::new(cx, "localhost");
@@ -112,19 +127,6 @@ impl PostCommanderPage {
             .detach();
         }
 
-        cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(Duration::from_micros(100)).await;
-                let result = this.update(cx, |_, cx| {
-                    cx.notify();
-                });
-                if result.is_err() {
-                    break;
-                }
-            }
-        })
-        .detach();
-
         let completion_provider = Rc::new(SqlCompletionProvider::new());
         let completion_schemas = completion_provider.schemas_ref();
         let completion_structures = completion_provider.table_structures_ref();
@@ -159,7 +161,7 @@ impl PostCommanderPage {
             expanded_nodes: saved_expanded
                 .map(|v| v.into_iter().collect())
                 .unwrap_or_default(),
-            schemas: SchemaMap::new(),
+            schemas: Arc::new(SchemaMap::new()),
             schemas_loading: false,
             context_menu: None,
             cell_edit: None,
@@ -171,51 +173,61 @@ impl PostCommanderPage {
             safety_warning: None,
             pending_capitalization: None,
             pending_undo_newline: None,
+            cached_connection,
         }
     }
 
-    pub(crate) fn get_conn_host(&self, cx: &App) -> String {
-        self.input_host.read(cx).content().to_string()
+    pub(crate) fn get_conn_host(&self) -> &str {
+        &self.cached_connection.host
     }
 
-    pub(crate) fn get_conn_port(&self, cx: &App) -> String {
-        self.input_port.read(cx).content().to_string()
+    pub(crate) fn get_conn_port(&self) -> &str {
+        &self.cached_connection.port
     }
 
-    pub(crate) fn get_conn_database(&self, cx: &App) -> String {
-        self.input_database.read(cx).content().to_string()
+    pub(crate) fn get_conn_database(&self) -> &str {
+        &self.cached_connection.database
     }
 
-    pub(crate) fn get_conn_username(&self, cx: &App) -> String {
-        self.input_username.read(cx).content().to_string()
+    pub(crate) fn get_conn_username(&self) -> &str {
+        &self.cached_connection.username
     }
 
-    pub(crate) fn get_conn_password(&self, cx: &App) -> String {
-        self.input_password.read(cx).content().to_string()
+    pub(crate) fn get_conn_password(&self) -> &str {
+        &self.cached_connection.password
+    }
+
+    fn update_cached_connection(&mut self, cx: &App) {
+        self.cached_connection.host = self.input_host.read(cx).content().to_string();
+        self.cached_connection.port = self.input_port.read(cx).content().to_string();
+        self.cached_connection.database = self.input_database.read(cx).content().to_string();
+        self.cached_connection.username = self.input_username.read(cx).content().to_string();
+        self.cached_connection.password = self.input_password.read(cx).content().to_string();
     }
 
     pub(crate) fn connect_to_database(&mut self, cx: &mut Context<Self>) {
-        let host = self.get_conn_host(cx);
-        let port_str = self.get_conn_port(cx);
-        let database = self.get_conn_database(cx);
-        let username = self.get_conn_username(cx);
-        let password = self.get_conn_password(cx);
+        self.update_cached_connection(cx);
+        let host = self.get_conn_host();
+        let port_str = self.get_conn_port();
+        let database = self.get_conn_database();
+        let username = self.get_conn_username();
+        let password = self.get_conn_password();
 
         let config = ConnectionConfig {
             name: "Local PostgreSQL".to_string(),
-            host: host.clone(),
+            host: host.to_string(),
             port: port_str.parse().unwrap_or(5432),
-            database: database.clone(),
-            username: username.clone(),
-            password: password.clone(),
+            database: database.to_string(),
+            username: username.to_string(),
+            password: password.to_string(),
         };
 
         let conn_settings = ConnectionSettings {
-            host: host.clone(),
-            port: port_str.clone(),
-            database: database.clone(),
-            username: username.clone(),
-            password: password.clone(),
+            host: host.to_string(),
+            port: port_str.to_string(),
+            database: database.to_string(),
+            username: username.to_string(),
+            password: password.to_string(),
         };
 
         self.connection_state = ConnectionState::Connecting;
@@ -249,197 +261,6 @@ impl PostCommanderPage {
                     }
                 }
                 cx.notify();
-            });
-        })
-        .detach();
-    }
-
-    pub(crate) fn execute_query(&mut self, cx: &mut Context<Self>) {
-        self.execute_query_internal(false, cx);
-    }
-
-    pub(crate) fn execute_query_force(&mut self, cx: &mut Context<Self>) {
-        self.safety_warning = None;
-        self.execute_query_internal(true, cx);
-    }
-
-    pub(crate) fn cancel_dangerous_query(&mut self, cx: &mut Context<Self>) {
-        self.safety_warning = None;
-        cx.notify();
-    }
-
-    fn execute_query_internal(&mut self, force: bool, cx: &mut Context<Self>) {
-        let Some(tab_id) = self.active_tab_id.clone() else {
-            return;
-        };
-
-        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == tab_id) else {
-            return;
-        };
-
-        let raw_sql = tab.editor.read(cx).value().to_string();
-        if raw_sql.trim().is_empty() {
-            return;
-        }
-
-        let sql = format_sql(&raw_sql);
-
-        if !force {
-            let danger_level = analyze_sql(&sql);
-            match danger_level {
-                SqlDangerLevel::Safe => {}
-                SqlDangerLevel::Warning(ref msg) | SqlDangerLevel::Dangerous(ref msg) => {
-                    self.safety_warning = Some((danger_level.clone(), msg.clone()));
-                    cx.notify();
-                    return;
-                }
-            }
-        }
-
-        tab.is_loading = true;
-        tab.error = None;
-        tab.table_context = None;
-        cx.notify();
-
-        let parsed_table = parse_table_from_select(&sql);
-        let rx = self.db_manager.execute(sql);
-        let tab_id_clone = tab_id.clone();
-        let db_manager = self.db_manager.clone();
-
-        cx.spawn(async move |this, cx| {
-            let result = rx.await;
-            let _ = this.update(cx, |this, cx| {
-                match result {
-                    Ok(Ok(query_result)) => {
-                        if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_clone) {
-                            let columns: Vec<DataTableColumn> = query_result
-                                .columns
-                                .iter()
-                                .map(|c| {
-                                    DataTableColumn::new(c.name.clone())
-                                        .type_name(c.type_name.clone())
-                                })
-                                .collect();
-                            let rows = query_result.rows.clone();
-
-                            tab.table_state.update(cx, |state, _cx| {
-                                state.set_columns(columns);
-                                state.set_rows(rows);
-                            });
-                            tab.result = Some(query_result);
-                            tab.is_loading = false;
-                            tab.error = None;
-
-                            if let Some((schema, table)) = parsed_table.clone() {
-                                let tab_id_for_pk = tab_id_clone.clone();
-                                let pk_rx = db_manager.fetch_primary_keys(schema.clone(), table.clone());
-                                let fk_rx = db_manager.fetch_foreign_keys(schema.clone(), table.clone());
-                                let struct_rx = db_manager.fetch_table_structure(schema.clone(), table.clone());
-
-                                cx.spawn(async move |this, cx| {
-                                    let pk_result = pk_rx.await;
-                                    let fk_result = fk_rx.await;
-                                    let struct_result = struct_rx.await;
-
-                                    let _ = this.update(cx, |this, cx| {
-                                        let primary_keys = match pk_result {
-                                            Ok(Ok(pks)) => pks,
-                                            _ => vec![],
-                                        };
-
-                                        let foreign_keys = match fk_result {
-                                            Ok(Ok(fks)) => fks
-                                                .into_iter()
-                                                .map(|fk| (fk.column_name.clone(), fk))
-                                                .collect(),
-                                            _ => std::collections::HashMap::new(),
-                                        };
-
-                                        let context = TableContext {
-                                            schema: schema.clone(),
-                                            table: table.clone(),
-                                            primary_keys,
-                                            foreign_keys,
-                                        };
-
-                                        if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_for_pk) {
-                                            tab.table_context = Some(context.clone());
-                                            tab.table_state.update(cx, |state, _cx| {
-                                                state.set_table_context(Some(context));
-                                            });
-
-                                            if let Ok(Ok(structure)) = struct_result {
-                                                let key = format!("{}.{}", structure.schema, structure.table);
-                                                tab.table_structures = vec![structure.clone()];
-                                                tab.structure_expanded.insert(key, true);
-                                                *this.completion_structures.borrow_mut() = vec![structure];
-                                            }
-                                        }
-
-                                        cx.notify();
-                                    });
-                                }).detach();
-                            }
-                        }
-                    }
-                    Ok(Err(e)) => {
-                        if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_clone) {
-                            tab.table_state.update(cx, |state, cx| {
-                                state.clear();
-                                cx.notify();
-                            });
-                            tab.error = Some(e.to_string());
-                            tab.is_loading = false;
-                        }
-                    }
-                    Err(_) => {
-                        if let Some(tab) = this.tabs.iter_mut().find(|t| t.id == tab_id_clone) {
-                            tab.table_state.update(cx, |state, cx| {
-                                state.clear();
-                                cx.notify();
-                            });
-                            tab.error = Some("Query execution failed".to_string());
-                            tab.is_loading = false;
-                        }
-                    }
-                }
-                cx.notify();
-            });
-        })
-        .detach();
-    }
-
-    pub(crate) fn handle_fk_data_request(
-        &mut self,
-        table_state: Entity<DataTableState>,
-        event: &FkDataRequest,
-        cx: &mut Context<Self>,
-    ) {
-        let db_manager = self.db_manager.clone();
-        let fk_info = event.fk_info.clone();
-        let cell_value = event.cell_value.to_string();
-
-        let rx = db_manager.fetch_fk_referenced_row(
-            fk_info.referenced_schema.clone(),
-            fk_info.referenced_table.clone(),
-            fk_info.referenced_column.clone(),
-            cell_value,
-        );
-
-        cx.spawn(async move |_this, cx| {
-            let result = rx.await;
-            let _ = table_state.update(cx, |state, cx| {
-                match result {
-                    Ok(Ok(data)) => {
-                        state.set_fk_card_data(data, cx);
-                    }
-                    Ok(Err(e)) => {
-                        state.set_fk_card_error(e.to_string(), cx);
-                    }
-                    Err(_) => {
-                        state.set_fk_card_error("Failed to fetch data".to_string(), cx);
-                    }
-                }
             });
         })
         .detach();
@@ -611,20 +432,6 @@ impl PostCommanderPage {
         AppSettings::get_global(cx).save();
     }
 
-    fn save_sidebar_width(&self, cx: &mut Context<Self>) {
-        AppSettings::update_global(cx, |settings| {
-            settings.postcommander_mut().sidebar_width = Some(self.sidebar_width);
-        });
-        AppSettings::get_global(cx).save();
-    }
-
-    fn save_editor_height(&self, cx: &mut Context<Self>) {
-        AppSettings::update_global(cx, |settings| {
-            settings.postcommander_mut().editor_height = Some(self.editor_height);
-        });
-        AppSettings::get_global(cx).save();
-    }
-
     pub(crate) fn save_structure_panel_width(&self, cx: &mut Context<Self>) {
         AppSettings::update_global(cx, |settings| {
             settings.postcommander_mut().structure_panel_width = Some(self.structure_panel_width);
@@ -671,214 +478,17 @@ impl PostCommanderPage {
                             }
                         }
                         *this.completion_schemas.borrow_mut() = schemas.clone();
-                        this.schemas = schemas;
+                        this.schemas = Arc::new(schemas);
                     }
                     _ => {
                         *this.completion_schemas.borrow_mut() = SchemaMap::new();
-                        this.schemas = SchemaMap::new();
+                        this.schemas = Arc::new(SchemaMap::new());
                     }
                 }
                 cx.notify();
             });
         })
         .detach();
-    }
-
-    fn render_resize_handle(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let colors = theme.colors();
-        let border_variant = colors.border_variant;
-        let accent = colors.accent;
-        let is_resizing = self.is_resizing;
-
-        div()
-            .id("sidebar-resize-handle")
-            .w(px(4.))
-            .h_full()
-            .cursor_col_resize()
-            .bg(transparent_black())
-            .when(is_resizing, |el| el.bg(rgb(accent)))
-            .hover(move |s| s.bg(rgb(border_variant)))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                    this.is_resizing = true;
-                    this.resize_start_x = f32::from(event.position.x);
-                    this.resize_start_width = this.sidebar_width;
-                    cx.notify();
-                }),
-            )
-    }
-
-    fn render_resize_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("resize-overlay")
-            .absolute()
-            .inset_0()
-            .cursor_col_resize()
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if this.is_resizing {
-                    let delta = f32::from(event.position.x) - this.resize_start_x;
-                    let new_width = (this.resize_start_width + delta).clamp(180.0, 500.0);
-                    this.sidebar_width = new_width;
-                    cx.notify();
-                }
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _, _, cx| {
-                    this.is_resizing = false;
-                    this.save_sidebar_width(cx);
-                    cx.notify();
-                }),
-            )
-    }
-
-    pub(crate) fn render_editor_resize_handle(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let colors = theme.colors();
-        let border_variant = colors.border_variant;
-        let accent = colors.accent;
-        let is_resizing = self.is_resizing_editor;
-
-        div()
-            .id("editor-resize-handle")
-            .w_full()
-            .h(px(4.))
-            .cursor_row_resize()
-            .bg(transparent_black())
-            .when(is_resizing, |el| el.bg(rgb(accent)))
-            .hover(move |s| s.bg(rgb(border_variant)))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                    this.is_resizing_editor = true;
-                    this.resize_start_y = f32::from(event.position.y);
-                    this.resize_start_editor_height = this.editor_height;
-                    cx.notify();
-                }),
-            )
-    }
-
-    fn render_editor_resize_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("editor-resize-overlay")
-            .absolute()
-            .inset_0()
-            .cursor_row_resize()
-            .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if this.is_resizing_editor {
-                    let delta = f32::from(event.position.y) - this.resize_start_y;
-                    let new_height = (this.resize_start_editor_height + delta).clamp(100.0, 600.0);
-                    this.editor_height = new_height;
-                    cx.notify();
-                }
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _, _, cx| {
-                    this.is_resizing_editor = false;
-                    this.save_editor_height(cx);
-                    cx.notify();
-                }),
-            )
-    }
-
-    fn render_safety_warning_dialog(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let colors = theme.colors();
-
-        let Some((danger_level, message)) = &self.safety_warning else {
-            return div().into_any_element();
-        };
-
-        let is_dangerous = matches!(danger_level, SqlDangerLevel::Dangerous(_));
-        let title = if is_dangerous { "Dangerous Query" } else { "Warning" };
-        let icon_color = if is_dangerous { colors.status_error } else { colors.status_warning };
-
-        div()
-            .id("safety-warning-overlay")
-            .absolute()
-            .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(rgba(0x00000080))
-            .on_mouse_down(MouseButton::Left, |_, _, _| {})
-            .child(
-                div()
-                    .w(px(420.0))
-                    .bg(rgb(colors.surface))
-                    .border_1()
-                    .border_color(rgb(colors.border))
-                    .rounded_lg()
-                    .shadow_lg()
-                    .p_4()
-                    .flex()
-                    .flex_col()
-                    .gap_4()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                crate::icons::icon("alert-triangle", px(24.0), icon_color)
-                            )
-                            .child(
-                                div()
-                                    .text_lg()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(rgb(colors.text))
-                                    .child(title)
-                            )
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(colors.text_muted))
-                            .child(message.clone())
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .justify_end()
-                            .gap_2()
-                            .child(
-                                div()
-                                    .id("cancel-btn")
-                                    .px_3()
-                                    .py_1p5()
-                                    .rounded_md()
-                                    .bg(rgb(colors.element))
-                                    .text_sm()
-                                    .text_color(rgb(colors.text))
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(rgb(colors.element_hover)))
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.cancel_dangerous_query(cx);
-                                    }))
-                                    .child("Cancel")
-                            )
-                            .child(
-                                div()
-                                    .id("proceed-btn")
-                                    .px_3()
-                                    .py_1p5()
-                                    .rounded_md()
-                                    .bg(rgb(icon_color))
-                                    .text_sm()
-                                    .text_color(rgb(colors.accent_foreground))
-                                    .cursor_pointer()
-                                    .hover(|s| s.opacity(0.9))
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.execute_query_force(cx);
-                                    }))
-                                    .child("Execute Anyway")
-                            )
-                    )
-            )
-            .into_any_element()
     }
 }
 

@@ -334,8 +334,8 @@ impl PostCommanderPage {
                     .overflow_hidden()
                     .children(self.tabs.iter().map(|tab| {
                         let is_active = active_tab_id.as_ref() == Some(&tab.id);
-                        let tab_id = tab.id.clone();
-                        let close_id = tab.id.clone();
+                        let tab_id = tab.id;
+                        let close_id = tab.id;
                         let tab_name = tab.name.clone();
                         let tab_db = tab.database.clone();
 
@@ -353,7 +353,7 @@ impl PostCommanderPage {
                             .hover(move |s| s.bg(rgb(element_hover)))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 if this.tabs.iter().any(|t| t.id == tab_id) {
-                                    this.active_tab_id = Some(tab_id.clone());
+                                    this.active_tab_id = Some(tab_id);
                                     cx.notify();
                                 }
                             }))
@@ -374,7 +374,7 @@ impl PostCommanderPage {
                                     .rounded(px(2.))
                                     .hover(move |s| s.bg(rgb(element_active)))
                                     .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.close_tab(&close_id, cx);
+                                        this.close_tab(close_id, cx);
                                     }))
                                     .child(icon_sm("x", text_muted)),
                             )
@@ -538,13 +538,13 @@ impl PostCommanderPage {
         let is_connected = matches!(self.connection_state, super::types::ConnectionState::Connected);
 
         let status_text = match &self.connection_state {
-            super::types::ConnectionState::Connected => format!("{}:{}", self.get_conn_host(cx), self.get_conn_port(cx)),
+            super::types::ConnectionState::Connected => format!("{}:{}", self.get_conn_host(), self.get_conn_port()),
             super::types::ConnectionState::Connecting => "Connecting...".to_string(),
             super::types::ConnectionState::Disconnected => "Not connected".to_string(),
             super::types::ConnectionState::Error(e) => format!("Error: {}", e),
         };
 
-        let database = self.get_conn_database(cx);
+        let database = self.get_conn_database().to_string();
 
         div()
             .h(px(24.))

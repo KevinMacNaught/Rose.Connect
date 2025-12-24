@@ -51,6 +51,12 @@ Key patterns:
 3. **Render methods**: Group related render methods into separate files with their own `impl` blocks
 4. **Use `pub(crate)`**: Fields accessed by other files in the module need `pub(crate)` visibility
 
+**For detailed examples and patterns, see `docs/refactoring-patterns.md`.**
+
+Real-world examples:
+- `src/postcommander/` - Component method extraction (1034→644 lines)
+- `src/components/data_table/` - Directory module pattern (865→400 lines)
+
 ---
 
 ## Documentation Index
@@ -64,6 +70,7 @@ Read the relevant docs before starting work in each area:
 | **macOS features (menus, titlebar)** | `docs/macos-app-guide.md` |
 | **Looking for GPUI examples** | `docs/zed-reference.md` |
 | **PostCommander database UI** | `docs/postcommander-ui-specification.md` |
+| **Splitting large files** | `docs/refactoring-patterns.md` |
 
 ### Quick Reference
 
@@ -92,12 +99,13 @@ div().child(icon_sm("search", colors.text_muted))
 
 **Custom dropdowns** - For multi-column selects or complex dropdowns, use relative/absolute positioning with `deferred()`. See `docs/gpui-guide.md` § "Custom Dropdown/Select Components" and `src/components_test.rs`.
 
-**DataTable component** - Reusable data table with scrolling data grids. See `src/components/data_table.rs`. Supports:
+**DataTable component** - Reusable data table with scrolling data grids. See `src/components/data_table/`. Supports:
 - Manual horizontal/vertical scrolling (GPUI's overflow_scroll doesn't work for horizontal)
 - Row virtualization for performance (only renders visible rows)
 - Column resizing via drag handles
 - Text truncation with ellipsis
 - PK indicators in column headers
+- Foreign key popup cards (draggable)
 - See `docs/gpui-guide.md` § "Horizontal Scrolling" and "Column Resizing with Drag"
 
 **App shell pattern** - MainLayout provides persistent header/sidebar/footer. Apps render in content area without their own title bar padding. See `docs/macos-app-guide.md` § "App Shell Pattern".

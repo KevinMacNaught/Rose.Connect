@@ -4,6 +4,7 @@ use crate::postcommander::types::ConnectionState;
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
+use std::sync::Arc;
 
 impl PostCommanderPage {
     pub fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -42,9 +43,9 @@ impl PostCommanderPage {
             _ => "Not connected".to_string(),
         };
 
-        let host = self.get_conn_host(cx);
-        let port = self.get_conn_port(cx);
-        let database = self.get_conn_database(cx);
+        let host = self.get_conn_host();
+        let port = self.get_conn_port();
+        let database = self.get_conn_database();
 
         div()
             .w(px(self.sidebar_width))
@@ -57,7 +58,7 @@ impl PostCommanderPage {
             .child(self.render_sidebar_header(surface, border_variant, text_muted, text_placeholder))
             .child(self.render_connect_button(cx, element_hover, accent, text, text_muted))
             .when(is_connected, |el| {
-                el.child(self.render_tree_view(cx, host, port, database, element_hover, text_muted, text, accent, status_success))
+                el.child(self.render_tree_view(cx, host.to_string(), port.to_string(), database.to_string(), element_hover, text_muted, text, accent, status_success))
             })
             .when(!is_connected, |el| {
                 el.child(self.render_disconnected_state(text_muted, error_text))
@@ -151,11 +152,7 @@ impl PostCommanderPage {
         let server_expanded = self.expanded_nodes.contains("server");
         let db_expanded = self.expanded_nodes.contains("database");
         let schemas_loading = self.schemas_loading;
-        let schemas: Vec<_> = self
-            .schemas
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let schemas = self.schemas.clone();
 
         div()
             .id("sidebar-tree-scroll")
@@ -211,7 +208,7 @@ impl PostCommanderPage {
         database: String,
         db_expanded: bool,
         schemas_loading: bool,
-        schemas: Vec<(String, super::types::SchemaObjects)>,
+        schemas: Arc<super::types::SchemaMap>,
         element_hover: u32,
         text_muted: u32,
         text: u32,
