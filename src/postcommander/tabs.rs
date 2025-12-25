@@ -1,6 +1,6 @@
 use crate::components::DataTableState;
 use crate::postcommander::page::PostCommanderPage;
-use crate::postcommander::sql_format::maybe_capitalize_last_word;
+use crate::postcommander::sql::maybe_capitalize_last_word;
 use crate::postcommander::types::{QueryTab, TabId};
 use gpui::*;
 use gpui_component::input::{InputEvent, InputState};

@@ -1,4 +1,4 @@
-use crate::postcommander::sql_safety::SqlDangerLevel;
+use crate::postcommander::sql::SqlDangerLevel;
 use crate::postcommander::PostCommanderPage;
 use crate::theme::ActiveTheme;
 use gpui::*;

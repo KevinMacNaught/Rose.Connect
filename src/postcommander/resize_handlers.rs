@@ -9,7 +9,7 @@ impl PostCommanderPage {
         let colors = theme.colors();
         let border_variant = colors.border_variant;
         let accent = colors.accent;
-        let is_resizing = self.is_resizing;
+        let is_resizing = self.resize.is_resizing_sidebar;
 
         div()
             .id("sidebar-resize-handle")
@@ -22,9 +22,9 @@ impl PostCommanderPage {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                    this.is_resizing = true;
-                    this.resize_start_x = f32::from(event.position.x);
-                    this.resize_start_width = this.sidebar_width;
+                    this.resize.is_resizing_sidebar = true;
+                    this.resize.resize_sidebar_start_x = f32::from(event.position.x);
+                    this.resize.resize_sidebar_start_width = this.resize.sidebar_width;
                     cx.notify();
                 }),
             )
@@ -37,17 +37,17 @@ impl PostCommanderPage {
             .inset_0()
             .cursor_col_resize()
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if this.is_resizing {
-                    let delta = f32::from(event.position.x) - this.resize_start_x;
-                    let new_width = (this.resize_start_width + delta).clamp(180.0, 500.0);
-                    this.sidebar_width = new_width;
+                if this.resize.is_resizing_sidebar {
+                    let delta = f32::from(event.position.x) - this.resize.resize_sidebar_start_x;
+                    let new_width = (this.resize.resize_sidebar_start_width + delta).clamp(180.0, 500.0);
+                    this.resize.sidebar_width = new_width;
                     cx.notify();
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
-                    this.is_resizing = false;
+                    this.resize.is_resizing_sidebar = false;
                     this.save_sidebar_width(cx);
                     cx.notify();
                 }),
@@ -59,7 +59,7 @@ impl PostCommanderPage {
         let colors = theme.colors();
         let border_variant = colors.border_variant;
         let accent = colors.accent;
-        let is_resizing = self.is_resizing_editor;
+        let is_resizing = self.resize.is_resizing_editor;
 
         div()
             .id("editor-resize-handle")
@@ -72,9 +72,9 @@ impl PostCommanderPage {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                    this.is_resizing_editor = true;
-                    this.resize_start_y = f32::from(event.position.y);
-                    this.resize_start_editor_height = this.editor_height;
+                    this.resize.is_resizing_editor = true;
+                    this.resize.resize_editor_start_y = f32::from(event.position.y);
+                    this.resize.resize_editor_start_height = this.resize.editor_height;
                     cx.notify();
                 }),
             )
@@ -87,17 +87,17 @@ impl PostCommanderPage {
             .inset_0()
             .cursor_row_resize()
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if this.is_resizing_editor {
-                    let delta = f32::from(event.position.y) - this.resize_start_y;
-                    let new_height = (this.resize_start_editor_height + delta).clamp(100.0, 600.0);
-                    this.editor_height = new_height;
+                if this.resize.is_resizing_editor {
+                    let delta = f32::from(event.position.y) - this.resize.resize_editor_start_y;
+                    let new_height = (this.resize.resize_editor_start_height + delta).clamp(100.0, 600.0);
+                    this.resize.editor_height = new_height;
                     cx.notify();
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
-                    this.is_resizing_editor = false;
+                    this.resize.is_resizing_editor = false;
                     this.save_editor_height(cx);
                     cx.notify();
                 }),
@@ -107,7 +107,7 @@ impl PostCommanderPage {
     pub(crate) fn save_sidebar_width(&self, cx: &mut Context<Self>) {
         use crate::settings::AppSettings;
         AppSettings::update_global(cx, |settings| {
-            settings.postcommander_mut().sidebar_width = Some(self.sidebar_width);
+            settings.postcommander_mut().sidebar_width = Some(self.resize.sidebar_width);
         });
         AppSettings::get_global(cx).save();
     }
@@ -115,7 +115,7 @@ impl PostCommanderPage {
     pub(crate) fn save_editor_height(&self, cx: &mut Context<Self>) {
         use crate::settings::AppSettings;
         AppSettings::update_global(cx, |settings| {
-            settings.postcommander_mut().editor_height = Some(self.editor_height);
+            settings.postcommander_mut().editor_height = Some(self.resize.editor_height);
         });
         AppSettings::get_global(cx).save();
     }

@@ -1,6 +1,5 @@
 use crate::components::{DataTableColumn, FkDataRequest};
-use crate::postcommander::sql_format::format_sql;
-use crate::postcommander::sql_safety::{analyze_sql, SqlDangerLevel};
+use crate::postcommander::sql::{analyze_sql, format_sql, SqlDangerLevel};
 use crate::postcommander::types::TableContext;
 use crate::postcommander::ui_helpers::parse_table_from_select;
 use crate::postcommander::PostCommanderPage;

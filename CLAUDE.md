@@ -15,6 +15,7 @@ cargo check          # Type check without building
 cargo test           # Run tests
 cargo test test_name # Run a specific test
 cargo watch -x run -i data/ -i docs/  # Auto-rebuild on changes
+cargo watch -x "run --release" -i data/ -i docs/  # Release version
 ```
 
 **Cargo Watch Gotcha:** If your app writes files to the project directory (like `data/settings.json`), cargo watch will detect the change and trigger a rebuild/relaunch. Use `-i data/` to ignore the data directory.
@@ -71,6 +72,7 @@ Read the relevant docs before starting work in each area:
 | **Looking for GPUI examples** | `docs/zed-reference.md` |
 | **PostCommander database UI** | `docs/postcommander-ui-specification.md` |
 | **Splitting large files** | `docs/refactoring-patterns.md` |
+| **Performance optimization** | `docs/performance-patterns.md` |
 
 ### Quick Reference
 

@@ -48,7 +48,7 @@ impl PostCommanderPage {
         let database = self.get_conn_database();
 
         div()
-            .w(px(self.sidebar_width))
+            .w(px(self.resize.sidebar_width))
             .h_full()
             .flex()
             .flex_col()
@@ -122,7 +122,7 @@ impl PostCommanderPage {
                     .cursor_pointer()
                     .hover(move |s| s.bg(rgb(element_hover)))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.show_connection_dialog = true;
+                        this.connection_dialog.is_visible = true;
                         cx.notify();
                     }))
                     .child(icon_sm("plug", accent))
@@ -357,9 +357,9 @@ impl PostCommanderPage {
         let schema_name_for_items = schema_name.clone();
         let tables_clone = tables.to_vec();
         let context_menu_table = self
-            .context_menu
+            .overlays.context_menu
             .as_ref()
-            .map(|(_, _, t, _)| t.clone());
+            .map(|(_, _, t, _): &(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, String, Subscription)| t.clone());
 
         div()
             .child(

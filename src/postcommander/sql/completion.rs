@@ -8,7 +8,7 @@ use lsp_types::{
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::types::{SchemaMap, TableStructureInfo};
+use crate::postcommander::types::{SchemaMap, TableStructureInfo};
 
 pub struct SqlCompletionProvider {
     schemas: Rc<RefCell<SchemaMap>>,
@@ -184,13 +184,14 @@ impl CompletionProvider for SqlCompletionProvider {
         let ctx_info = detect_sql_context(&text_str, offset);
         let schemas = self.schemas.borrow();
         let structures = self.table_structures.borrow();
-        let filter = ctx_info.filter.to_lowercase();
+        let filter_lower = ctx_info.filter.to_lowercase();
 
         let matches = |label: &str| -> bool {
-            if filter.is_empty() {
+            if filter_lower.is_empty() {
                 return true;
             }
-            label.to_lowercase().starts_with(&filter) || label.to_lowercase().contains(&filter)
+            let label_lower = label.to_lowercase();
+            label_lower.starts_with(&filter_lower) || label_lower.contains(&filter_lower)
         };
 
         Task::ready(Ok(CompletionResponse::Array(match ctx_info.context {

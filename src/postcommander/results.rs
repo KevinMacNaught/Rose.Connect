@@ -18,7 +18,7 @@ impl PostCommanderPage {
         let element_hover = colors.element_hover;
         let accent = colors.accent;
         let accent_foreground = colors.accent_foreground;
-        let editor_height = self.editor_height;
+        let editor_height = self.resize.editor_height;
 
         let active_tab = self
             .active_tab_id
@@ -495,7 +495,7 @@ impl PostCommanderPage {
                                 .cursor_pointer()
                                 .hover(|s| s.opacity(0.9))
                                 .on_click(cx.listener(|this, _, _, cx| {
-                                    this.show_connection_dialog = true;
+                                    this.connection_dialog.is_visible = true;
                                     cx.notify();
                                 }))
                                 .child(

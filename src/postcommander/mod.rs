@@ -8,12 +8,13 @@ mod query_execution;
 mod resize_handlers;
 mod results;
 mod sidebar;
-mod sql_completion;
-mod sql_format;
-mod sql_safety;
+mod sql;
+mod state;
 mod structure_panel;
 mod tabs;
+mod theme_colors;
 pub mod types;
 mod ui_helpers;
 
 pub use page::PostCommanderPage;
+pub use theme_colors::RenderColors;

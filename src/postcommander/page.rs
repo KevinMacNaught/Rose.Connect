@@ -1,7 +1,7 @@
 use crate::components::TextInput;
 use crate::postcommander::database::{ConnectionConfig, DatabaseManager};
-use crate::postcommander::sql_completion::SqlCompletionProvider;
-use crate::postcommander::sql_safety::SqlDangerLevel;
+use crate::postcommander::sql::{SqlCompletionProvider, SqlDangerLevel};
+use crate::postcommander::state::{ActiveOverlays, ConnectionDialogState, ResizeState};
 use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TabId, TableStructureInfo};
 use crate::settings::{AppSettings, ConnectionSettings};
 use crate::theme::ActiveTheme;
@@ -14,34 +14,17 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 pub struct PostCommanderPage {
-    pub(crate) sidebar_width: f32,
-    pub(crate) is_resizing: bool,
-    pub(crate) resize_start_x: f32,
-    pub(crate) resize_start_width: f32,
-    pub(crate) editor_height: f32,
-    pub(crate) is_resizing_editor: bool,
-    pub(crate) resize_start_y: f32,
-    pub(crate) resize_start_editor_height: f32,
-    pub(crate) structure_panel_width: f32,
-    pub(crate) is_resizing_structure: bool,
-    pub(crate) resize_structure_start_x: f32,
-    pub(crate) resize_structure_start_width: f32,
+    pub(crate) resize: ResizeState,
+    pub(crate) connection_dialog: ConnectionDialogState,
+    pub(crate) overlays: ActiveOverlays,
     pub(crate) tabs: Vec<QueryTab>,
     pub(crate) active_tab_id: Option<TabId>,
     pub(crate) db_manager: Arc<DatabaseManager>,
     pub(crate) connection_state: ConnectionState,
-    pub(crate) show_connection_dialog: bool,
-    pub(crate) input_host: Entity<TextInput>,
-    pub(crate) input_port: Entity<TextInput>,
-    pub(crate) input_database: Entity<TextInput>,
-    pub(crate) input_username: Entity<TextInput>,
-    pub(crate) input_password: Entity<TextInput>,
     pub(crate) expanded_nodes: HashSet<String>,
     pub(crate) schemas: Arc<SchemaMap>,
     pub(crate) schemas_loading: bool,
-    pub(crate) context_menu: Option<(Entity<PopupMenu>, Point<Pixels>, String, Subscription)>,
     pub(crate) cell_edit: Option<CellEditState>,
-    pub(crate) export_menu: Option<(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, Subscription)>,
     pub(crate) _subscriptions: Vec<Subscription>,
     pub(crate) completion_provider: Rc<SqlCompletionProvider>,
     pub(crate) completion_schemas: Rc<RefCell<SchemaMap>>,
@@ -132,18 +115,19 @@ impl PostCommanderPage {
         let completion_structures = completion_provider.table_structures_ref();
 
         Self {
-            sidebar_width: saved_sidebar_width.unwrap_or(240.0),
-            is_resizing: false,
-            resize_start_x: 0.0,
-            resize_start_width: 0.0,
-            editor_height: saved_editor_height.unwrap_or(200.0),
-            is_resizing_editor: false,
-            resize_start_y: 0.0,
-            resize_start_editor_height: 0.0,
-            structure_panel_width: saved_structure_panel_width.unwrap_or(280.0),
-            is_resizing_structure: false,
-            resize_structure_start_x: 0.0,
-            resize_structure_start_width: 0.0,
+            resize: ResizeState::new(
+                saved_sidebar_width.unwrap_or(240.0),
+                saved_editor_height.unwrap_or(200.0),
+                saved_structure_panel_width.unwrap_or(280.0),
+            ),
+            connection_dialog: ConnectionDialogState::new(
+                input_host,
+                input_port,
+                input_database,
+                input_username,
+                input_password,
+            ),
+            overlays: ActiveOverlays::default(),
             tabs: vec![],
             active_tab_id: None,
             db_manager: Arc::new(DatabaseManager::new()),
@@ -152,20 +136,12 @@ impl PostCommanderPage {
             } else {
                 ConnectionState::Disconnected
             },
-            show_connection_dialog: false,
-            input_host,
-            input_port,
-            input_database,
-            input_username,
-            input_password,
             expanded_nodes: saved_expanded
                 .map(|v| v.into_iter().collect())
                 .unwrap_or_default(),
             schemas: Arc::new(SchemaMap::new()),
             schemas_loading: false,
-            context_menu: None,
             cell_edit: None,
-            export_menu: None,
             _subscriptions: vec![],
             completion_provider,
             completion_schemas,
@@ -198,11 +174,11 @@ impl PostCommanderPage {
     }
 
     fn update_cached_connection(&mut self, cx: &App) {
-        self.cached_connection.host = self.input_host.read(cx).content().to_string();
-        self.cached_connection.port = self.input_port.read(cx).content().to_string();
-        self.cached_connection.database = self.input_database.read(cx).content().to_string();
-        self.cached_connection.username = self.input_username.read(cx).content().to_string();
-        self.cached_connection.password = self.input_password.read(cx).content().to_string();
+        self.cached_connection.host = self.connection_dialog.input_host.read(cx).content().to_string();
+        self.cached_connection.port = self.connection_dialog.input_port.read(cx).content().to_string();
+        self.cached_connection.database = self.connection_dialog.input_database.read(cx).content().to_string();
+        self.cached_connection.username = self.connection_dialog.input_username.read(cx).content().to_string();
+        self.cached_connection.password = self.connection_dialog.input_password.read(cx).content().to_string();
     }
 
     pub(crate) fn connect_to_database(&mut self, cx: &mut Context<Self>) {
@@ -231,7 +207,7 @@ impl PostCommanderPage {
         };
 
         self.connection_state = ConnectionState::Connecting;
-        self.show_connection_dialog = false;
+        self.connection_dialog.is_visible = false;
         cx.notify();
 
         let rx = self.db_manager.connect(config);
@@ -364,11 +340,11 @@ impl PostCommanderPage {
         });
 
         let subscription = cx.subscribe(&menu, |this, _, _: &DismissEvent, cx| {
-            this.export_menu = None;
+            this.overlays.export_menu = None;
             cx.notify();
         });
 
-        self.export_menu = Some((menu, position, subscription));
+        self.overlays.export_menu = Some((menu, position, subscription));
         cx.notify();
     }
 
@@ -403,11 +379,11 @@ impl PostCommanderPage {
         });
 
         let subscription = cx.subscribe(&menu, |this, _, _: &DismissEvent, cx| {
-            this.context_menu = None;
+            this.overlays.context_menu = None;
             cx.notify();
         });
 
-        self.context_menu = Some((menu, position, table, subscription));
+        self.overlays.context_menu = Some((menu, position, table, subscription));
         cx.notify();
     }
 
@@ -434,7 +410,7 @@ impl PostCommanderPage {
 
     pub(crate) fn save_structure_panel_width(&self, cx: &mut Context<Self>) {
         AppSettings::update_global(cx, |settings| {
-            settings.postcommander_mut().structure_panel_width = Some(self.structure_panel_width);
+            settings.postcommander_mut().structure_panel_width = Some(self.resize.structure_panel_width);
         });
         AppSettings::get_global(cx).save();
     }
@@ -535,18 +511,18 @@ impl Render for PostCommanderPage {
         let background = colors.background;
 
         let has_tabs = !self.tabs.is_empty();
-        let show_dialog = self.show_connection_dialog;
-        let is_resizing = self.is_resizing;
-        let is_resizing_editor = self.is_resizing_editor;
-        let is_resizing_structure = self.is_resizing_structure;
+        let show_dialog = self.connection_dialog.is_visible;
+        let is_resizing = self.resize.is_resizing_sidebar;
+        let is_resizing_editor = self.resize.is_resizing_editor;
+        let is_resizing_structure = self.resize.is_resizing_structure;
         let show_cell_edit = self.cell_edit.is_some();
         let show_safety_warning = self.safety_warning.is_some();
         let context_menu = self
-            .context_menu
+            .overlays.context_menu
             .as_ref()
-            .map(|(menu, pos, _, _)| (menu.clone(), *pos));
+            .map(|(menu, pos, _, _): &(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, String, Subscription)| (menu.clone(), *pos));
         let export_menu = self
-            .export_menu
+            .overlays.export_menu
             .as_ref()
             .map(|(menu, pos, _)| (menu.clone(), *pos));
 
@@ -579,7 +555,7 @@ impl Render for PostCommanderPage {
                                 el.child(
                                     div()
                                         .flex()
-                                        .h(px(self.editor_height))
+                                        .h(px(self.resize.editor_height))
                                         .child(self.render_query_editor_content(cx))
                                         .child(self.render_structure_resize_handle(cx))
                                         .child(self.render_structure_panel(cx)),

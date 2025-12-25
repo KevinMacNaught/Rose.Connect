@@ -30,7 +30,7 @@ impl PostCommanderPage {
             .unwrap_or_default();
 
         div()
-            .w(px(self.structure_panel_width))
+            .w(px(self.resize.structure_panel_width))
             .h_full()
             .flex()
             .flex_col()
@@ -260,7 +260,7 @@ impl PostCommanderPage {
         let colors = theme.colors();
         let border_variant = colors.border_variant;
         let accent = colors.accent;
-        let is_resizing = self.is_resizing_structure;
+        let is_resizing = self.resize.is_resizing_structure;
 
         div()
             .id("structure-resize-handle")
@@ -273,9 +273,9 @@ impl PostCommanderPage {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                    this.is_resizing_structure = true;
-                    this.resize_structure_start_x = f32::from(event.position.x);
-                    this.resize_structure_start_width = this.structure_panel_width;
+                    this.resize.is_resizing_structure = true;
+                    this.resize.resize_structure_start_x = f32::from(event.position.x);
+                    this.resize.resize_structure_start_width = this.resize.structure_panel_width;
                     cx.notify();
                 }),
             )
@@ -288,19 +288,19 @@ impl PostCommanderPage {
             .inset_0()
             .cursor_col_resize()
             .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                if this.is_resizing_structure {
-                    let delta = this.resize_structure_start_x - f32::from(event.position.x);
-                    let new_width = (this.resize_structure_start_width + delta)
+                if this.resize.is_resizing_structure {
+                    let delta = this.resize.resize_structure_start_x - f32::from(event.position.x);
+                    let new_width = (this.resize.resize_structure_start_width + delta)
                         .max(200.0)
                         .min(500.0);
-                    this.structure_panel_width = new_width;
+                    this.resize.structure_panel_width = new_width;
                     cx.notify();
                 }
             }))
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(|this, _, _, cx| {
-                    this.is_resizing_structure = false;
+                    this.resize.is_resizing_structure = false;
                     this.save_structure_panel_width(cx);
                     cx.notify();
                 }),

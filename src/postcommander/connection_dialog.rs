@@ -33,7 +33,7 @@ impl PostCommanderPage {
                         .inset_0()
                         .bg(rgba(0x00000088))
                         .on_click(cx.listener(|this, _, _, cx| {
-                            this.show_connection_dialog = false;
+                            this.connection_dialog.is_visible = false;
                             cx.notify();
                         })),
                 )
@@ -100,7 +100,7 @@ impl PostCommanderPage {
                     .cursor_pointer()
                     .hover(move |s| s.bg(rgb(element_hover)))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.show_connection_dialog = false;
+                        this.connection_dialog.is_visible = false;
                         cx.notify();
                     }))
                     .child(icon_sm("x", text_muted)),
@@ -124,12 +124,12 @@ impl PostCommanderPage {
                 div()
                     .flex()
                     .gap_3()
-                    .child(self.render_input_field(cx, "Host", self.input_host.clone(), text_muted, text, surface, border_variant, accent, true))
-                    .child(self.render_input_field(cx, "Port", self.input_port.clone(), text_muted, text, surface, border_variant, accent, false).w(px(100.))),
+                    .child(self.render_input_field(cx, "Host", self.connection_dialog.input_host.clone(), text_muted, text, surface, border_variant, accent, true))
+                    .child(self.render_input_field(cx, "Port", self.connection_dialog.input_port.clone(), text_muted, text, surface, border_variant, accent, false).w(px(100.))),
             )
-            .child(self.render_input_field(cx, "Database", self.input_database.clone(), text_muted, text, surface, border_variant, accent, false))
-            .child(self.render_input_field(cx, "Username", self.input_username.clone(), text_muted, text, surface, border_variant, accent, false))
-            .child(self.render_input_field(cx, "Password", self.input_password.clone(), text_muted, text, surface, border_variant, accent, false))
+            .child(self.render_input_field(cx, "Database", self.connection_dialog.input_database.clone(), text_muted, text, surface, border_variant, accent, false))
+            .child(self.render_input_field(cx, "Username", self.connection_dialog.input_username.clone(), text_muted, text, surface, border_variant, accent, false))
+            .child(self.render_input_field(cx, "Password", self.connection_dialog.input_password.clone(), text_muted, text, surface, border_variant, accent, false))
     }
 
     fn render_input_field(
@@ -212,7 +212,7 @@ impl PostCommanderPage {
                     .cursor_pointer()
                     .hover(move |s| s.bg(rgb(element_hover)))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.show_connection_dialog = false;
+                        this.connection_dialog.is_visible = false;
                         cx.notify();
                     }))
                     .child(

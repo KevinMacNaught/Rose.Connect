@@ -275,7 +275,7 @@ fn render_visible_rows(
             let col_widths_for_row = col_widths.to_vec();
 
             div()
-                .id(ElementId::NamedInteger("row".into(), row_ix as u64))
+                .id(ElementId::Integer(row_ix as u64))
                 .group("table-row")
                 .absolute()
                 .left(-scroll_offset.x)
@@ -300,7 +300,7 @@ fn render_visible_rows(
                         cell_hover_bg,
                         &column_names_for_row,
                         &foreign_keys_for_row,
-                        state_for_row.clone(),
+                        &state_for_row,
                     )
                 }))
         })
@@ -320,22 +320,19 @@ fn render_cell(
     cell_hover_bg: u32,
     column_names: &[SharedString],
     foreign_keys: &Arc<std::collections::HashMap<String, crate::postcommander::types::ForeignKeyInfo>>,
-    state: Entity<DataTableState>,
+    state: &Entity<DataTableState>,
 ) -> Stateful<Div> {
     let is_null = cell.as_ref() == "NULL";
     let width = col_widths.get(col_ix).copied().unwrap_or(px(150.));
     let cell_value = cell.clone();
     let column_name = column_names.get(col_ix).cloned().unwrap_or_else(|| "".into());
-    let state_for_cell = state;
+    let state_for_cell = state.clone();
 
     let fk_info: Option<crate::postcommander::types::ForeignKeyInfo> = foreign_keys.get(column_name.as_ref()).cloned();
     let is_fk = fk_info.is_some();
 
     div()
-        .id(ElementId::NamedInteger(
-            format!("cell-{}", row_ix).into(),
-            col_ix as u64,
-        ))
+        .id(ElementId::Integer((row_ix as u64) << 32 | (col_ix as u64)))
         .w(width)
         .flex_shrink_0()
         .h(row_height)
