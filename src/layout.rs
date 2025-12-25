@@ -148,6 +148,7 @@ impl MainLayout {
         let border_variant = colors.border_variant;
 
         div()
+            .id("titlebar")
             .h(px(TITLEBAR_HEIGHT))
             .w_full()
             .bg(rgb(shell_bg))
@@ -158,6 +159,11 @@ impl MainLayout {
             .justify_between()
             .pl(px(90.))
             .pr_4()
+            .on_click(|event, window, _cx| {
+                if event.click_count() == 2 {
+                    window.titlebar_double_click();
+                }
+            })
             .child(
                 div()
                     .text_sm()
