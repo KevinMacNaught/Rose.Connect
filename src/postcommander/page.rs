@@ -360,19 +360,84 @@ impl PostCommanderPage {
 
         let schema_clone = schema.clone();
         let table_clone = table.clone();
-        let entity = cx.entity().downgrade();
+        let entity_select = cx.entity().downgrade();
+        let entity_copy_name = cx.entity().downgrade();
+        let entity_copy_qualified = cx.entity().downgrade();
+        let entity_count = cx.entity().downgrade();
+        let entity_generate = cx.entity().downgrade();
 
         let menu = PopupMenu::build(window, cx, move |menu, _window, _cx| {
             let schema = schema_clone.clone();
             let table = table_clone.clone();
-            let entity = entity.clone();
 
             menu.item(
-                PopupMenuItem::new("Select Top 100").on_click(move |_, window, cx| {
-                    if let Some(page) = entity.upgrade() {
-                        page.update(cx, |page, cx| {
-                            page.query_table(&schema, &table, window, cx);
-                        });
+                PopupMenuItem::new("Select Top 100").on_click({
+                    let entity = entity_select.clone();
+                    let schema = schema.clone();
+                    let table = table.clone();
+                    move |_, window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.query_table(&schema, &table, window, cx);
+                            });
+                        }
+                    }
+                }),
+            )
+            .separator()
+            .item(
+                PopupMenuItem::new("Copy Name").on_click({
+                    let entity = entity_copy_name.clone();
+                    let table = table.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |_page, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(table.clone()));
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy Qualified Name").on_click({
+                    let entity = entity_copy_qualified.clone();
+                    let schema = schema.clone();
+                    let table = table.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |_page, cx| {
+                                let qualified = format!("\"{}\".\"{}\"", schema, table);
+                                cx.write_to_clipboard(ClipboardItem::new_string(qualified));
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Count Rows").on_click({
+                    let entity = entity_count.clone();
+                    let schema = schema.clone();
+                    let table = table.clone();
+                    move |_, window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.count_table_rows(&schema, &table, window, cx);
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Generate SELECT").on_click({
+                    let entity = entity_generate.clone();
+                    let schema = schema.clone();
+                    let table = table.clone();
+                    move |_, window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.generate_select_statement(&schema, &table, window, cx);
+                            });
+                        }
                     }
                 }),
             )

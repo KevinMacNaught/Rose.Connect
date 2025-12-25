@@ -33,6 +33,79 @@ Feature ideas to make PostCommander a joy to use for database admins.
 
 ---
 
+## Table Context Menu
+
+Right-click menu options for tables in the sidebar:
+
+### Currently Implemented
+- Select Top 100
+- Copy Name
+- Copy Qualified Name
+- Count Rows
+- Generate SELECT
+
+### Proposed Additions
+
+**Data Operations:**
+- Select Top 1000 — when 100 isn't enough
+- Truncate Table... — with scary confirmation dialog
+
+**Schema Information:**
+- View Structure — columns, types, nullability, defaults (may already exist via panel?)
+- View Indexes — for performance troubleshooting
+- View Constraints — PKs, FKs, unique, check constraints
+- Table Size/Stats — disk usage, row count, bloat detection
+
+**SQL Generation (submenu):**
+- Generate INSERT Template — pre-filled column names
+- Generate UPDATE Template
+- Generate DELETE Template
+- Generate CREATE TABLE Script — for documentation or migrations
+
+**Export (submenu):**
+- Export to CSV
+- Export to JSON
+- Export to SQL INSERTs
+
+**Maintenance (submenu):**
+- VACUUM
+- VACUUM FULL
+- ANALYZE
+- REINDEX
+
+**Navigation:**
+- View Related Tables — show FK relationships
+- Open in New Tab — compare tables side-by-side
+
+### Suggested Menu Organization
+
+```
+Right-click on table:
+├── Select Top 100
+├── Select Top 1000
+├── Count Rows
+├── ─────────────
+├── Copy Name
+├── Copy Qualified Name
+├── ─────────────
+├── View Structure
+├── View Indexes
+├── View Constraints
+├── Table Size/Stats
+├── ─────────────
+├── Generate SQL        ▶ SELECT, INSERT, UPDATE, DELETE, CREATE TABLE
+├── Export              ▶ CSV, JSON, SQL Inserts
+├── ─────────────
+├── Maintenance         ▶ VACUUM, VACUUM FULL, ANALYZE, REINDEX
+├── ─────────────
+├── View Related Tables
+├── Open in New Tab
+├── ─────────────
+├── Truncate Table...
+```
+
+---
+
 ## Quality of Life
 
 ### 5. Multiple Connections
@@ -128,13 +201,49 @@ If implementing incrementally:
 | Priority | Feature | Effort | Impact |
 |----------|---------|--------|--------|
 | 1 | Query History | Medium | High |
-| 2 | Query Formatter | Low-Medium | High |
-| 3 | Keyboard Shortcuts | Low | Medium |
-| 4 | Copy Enhancements | Low | Medium |
-| 5 | EXPLAIN Visualization | High | High |
-| 6 | Saved Queries | Medium | High |
-| 7 | Multiple Connections | Medium | High |
-| 8 | Column Quick Stats | Medium | Medium |
+| 2 | Table Context Menu (basic) | Low | High |
+| 3 | Query Formatter | Low-Medium | High |
+| 4 | Keyboard Shortcuts | Low | Medium |
+| 5 | Copy Enhancements | Low | Medium |
+| 6 | EXPLAIN Visualization | High | High |
+| 7 | Saved Queries | Medium | High |
+| 8 | Multiple Connections | Medium | High |
+| 9 | Column Quick Stats | Medium | Medium |
+| 10 | Query Cancellation | Low | High |
+
+*Table Context Menu (basic) = Count Rows, Copy Name, Copy Qualified Name, Generate SELECT*
+
+---
+
+## Implementation Progress
+
+### Sprint: Table Context Menu (Basic)
+**Status:** ✅ Complete
+**Started:** 2025-12-25
+**Completed:** 2025-12-25
+
+Implemented Priority #2 items:
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Count Rows | ✅ Done | Creates new tab with COUNT query, auto-executes |
+| Copy Name | ✅ Done | Copies table name to clipboard |
+| Copy Qualified Name | ✅ Done | Copies `"schema"."table"` to clipboard |
+| Generate SELECT | ✅ Done | Inserts into active tab or creates new tab |
+
+**Files Modified:**
+- `src/postcommander/page.rs` - Extended `deploy_table_context_menu()` with 4 new items + separator
+- `src/postcommander/tabs.rs` - Added `count_table_rows()` and `generate_select_statement()` methods
+
+**Menu now includes:**
+```
+Select Top 100
+─────────────
+Copy Name
+Copy Qualified Name
+Count Rows
+Generate SELECT
+```
 
 ---
 
@@ -148,3 +257,32 @@ If implementing incrementally:
   - Cell editing with save
   - Export to CSV/JSON
   - Table structure panel
+
+---
+
+## DBA Feedback on Proposed Features
+
+Overall: This is an excellent roadmap. Here's my take as someone who would use this daily:
+
+**Strongly Agree (would use constantly):**
+- Query History (#1) — Can't live without this. I re-run queries constantly.
+- Saved Queries (#2) — "Show me slow queries" and "active connections" are scripts I run 20x/day
+- EXPLAIN ANALYZE Visualization (#3) — This is the killer feature. Text EXPLAIN output is painful. Visual trees with cost highlighting would be *chef's kiss*.
+- Multiple Connections (#5) — Critical. Red border for production is genius.
+- Keyboard Shortcuts (#9) — Cmd+Enter is muscle memory. The rest make it feel professional.
+- Copy Enhancements (#8) — Copying as INSERT statements alone is worth it.
+
+**Agree (weekly use):**
+- Query Formatter (#4) — Nice but I'd use it less than you'd think (I format as I type)
+- Table Statistics (#6) — Bloat indicator and last vacuum time are valuable
+- Column Quick Stats (#7) — Very useful for unfamiliar databases
+- ERD Diagram (#13) — Helpful for onboarding and documentation
+
+**Lower Priority for Me:**
+- Schema Comparison (#12) — I use dedicated migration tools for this
+- Results Pagination (#15) — I rarely need 1000+ rows; LIMIT is my friend
+
+**Additional Wish:**
+- **Query cancellation** — Long-running queries need a kill button. Show elapsed time, let me abort.
+- **Multiple result sets** — Some queries return multiple result sets; show them as tabs
+- **pg_stat_statements integration** — Show slow query stats if the extension is enabled
