@@ -59,6 +59,10 @@ impl QueryHistorySettings {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
     pub fn search(&self, query: &str) -> Vec<&QueryHistoryEntry> {
         let query_lower = query.to_lowercase();
         self.entries

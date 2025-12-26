@@ -921,6 +921,10 @@ impl Render for PostCommanderPage {
                     this.open_sql_file(window, cx);
                 } else if event.keystroke.key == "t" && event.keystroke.modifiers.platform {
                     this.add_tab(window, cx);
+                } else if event.keystroke.key == "w" && event.keystroke.modifiers.platform {
+                    if let Some(tab_id) = this.active_tab_id {
+                        this.close_tab(tab_id, window, cx);
+                    }
                 }
             }))
             .child(

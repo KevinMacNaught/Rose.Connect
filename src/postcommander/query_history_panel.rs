@@ -45,7 +45,7 @@ impl PostCommanderPage {
             .flex_1()
             .min_h_0()
             .bg(rgb(panel_background))
-            .child(self.render_history_header(surface, border_variant, text_muted, text_placeholder, text))
+            .child(self.render_history_header(surface, border_variant, text_muted, text_placeholder, text, element_hover, cx))
             .child(
                 div()
                     .id("query-history-scroll")
@@ -85,11 +85,16 @@ impl PostCommanderPage {
         text_muted: u32,
         text_placeholder: u32,
         text: u32,
+        element_hover: u32,
+        cx: &mut Context<Self>,
     ) -> impl IntoElement {
         div()
             .pt_3()
             .px_3()
             .pb_2()
+            .flex()
+            .flex_col()
+            .gap_2()
             .child(
                 div()
                     .h(px(28.))
@@ -111,6 +116,29 @@ impl PostCommanderPage {
                                 text_placeholder,
                             )),
                     ),
+            )
+            .child(
+                div()
+                    .id("clear-history-btn")
+                    .px_2()
+                    .py_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap_1()
+                    .rounded_md()
+                    .bg(rgb(surface))
+                    .border_1()
+                    .border_color(rgb(border_variant))
+                    .text_xs()
+                    .text_color(rgb(text_muted))
+                    .cursor_pointer()
+                    .hover(move |s| s.bg(rgb(element_hover)))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.clear_query_history(cx);
+                    }))
+                    .child(icon_sm("trash-2", text_muted))
+                    .child("Clear History"),
             )
     }
 

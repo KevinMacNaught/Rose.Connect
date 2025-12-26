@@ -25,6 +25,16 @@ impl PostCommanderPage {
         cx.notify();
     }
 
+    pub(crate) fn clear_query_history(&mut self, cx: &mut Context<Self>) {
+        AppSettings::update_global(cx, |settings| {
+            if let Some(ref mut history) = settings.postcommander_mut().query_history {
+                history.clear();
+            }
+        });
+        AppSettings::get_global(cx).save();
+        cx.notify();
+    }
+
     pub(crate) fn cancel_query(&mut self, cx: &mut Context<Self>) {
         let Some(tab_id) = self.active_tab_id.clone() else {
             return;
