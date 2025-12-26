@@ -405,11 +405,14 @@ impl PostCommanderPage {
                             .when(is_active, |el| el.border_color(rgb(accent)))
                             .when(!is_active, |el| el.border_color(transparent_black()))
                             .hover(move |s| s.bg(rgb(element_hover)))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                if this.tabs.iter().any(|t| t.id == tab_id) {
-                                    this.active_tab_id = Some(tab_id);
-                                    cx.notify();
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.active_tab_id = Some(tab_id);
+                                if let Some(tab) = this.tabs.iter().find(|t| t.id == tab_id) {
+                                    tab.editor.update(cx, |state, cx| {
+                                        state.focus(window, cx);
+                                    });
                                 }
+                                cx.notify();
                             }))
                             .child(
                                 div()
@@ -427,8 +430,8 @@ impl PostCommanderPage {
                                     .justify_center()
                                     .rounded(px(2.))
                                     .hover(move |s| s.bg(rgb(element_active)))
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.close_tab(close_id, cx);
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.close_tab(close_id, window, cx);
                                     }))
                                     .child(icon_sm("x", text_muted)),
                             )

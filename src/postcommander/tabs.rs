@@ -76,6 +76,11 @@ impl PostCommanderPage {
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
+        if let Some(tab) = self.tabs.last() {
+            tab.editor.update(cx, |state, cx| {
+                state.focus(window, cx);
+            });
+        }
         cx.notify();
     }
 
@@ -149,6 +154,11 @@ impl PostCommanderPage {
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
+        if let Some(tab) = self.tabs.last() {
+            tab.editor.update(cx, |state, cx| {
+                state.focus(window, cx);
+            });
+        }
         cx.notify();
 
         self.execute_query(cx);
@@ -224,6 +234,11 @@ impl PostCommanderPage {
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
+        if let Some(tab) = self.tabs.last() {
+            tab.editor.update(cx, |state, cx| {
+                state.focus(window, cx);
+            });
+        }
         cx.notify();
 
         self.execute_query(cx);
@@ -322,6 +337,11 @@ impl PostCommanderPage {
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
+        if let Some(tab) = self.tabs.last() {
+            tab.editor.update(cx, |state, cx| {
+                state.focus(window, cx);
+            });
+        }
         cx.notify();
     }
 
@@ -394,10 +414,15 @@ impl PostCommanderPage {
         };
         self.tabs.push(tab);
         self.active_tab_id = Some(id);
+        if let Some(tab) = self.tabs.last() {
+            tab.editor.update(cx, |state, cx| {
+                state.focus(window, cx);
+            });
+        }
         cx.notify();
     }
 
-    pub(crate) fn close_tab(&mut self, tab_id: TabId, cx: &mut Context<Self>) {
+    pub(crate) fn close_tab(&mut self, tab_id: TabId, window: &mut Window, cx: &mut Context<Self>) {
         let closed_index = self.tabs.iter().position(|t| t.id == tab_id);
         self.tabs.retain(|t| t.id != tab_id);
         if self.active_tab_id == Some(tab_id) {
@@ -410,6 +435,13 @@ impl PostCommanderPage {
                     }
                 })
                 .map(|t| t.id);
+        }
+        if let Some(active_id) = self.active_tab_id {
+            if let Some(tab) = self.tabs.iter().find(|t| t.id == active_id) {
+                tab.editor.update(cx, |state, cx| {
+                    state.focus(window, cx);
+                });
+            }
         }
         cx.notify();
     }

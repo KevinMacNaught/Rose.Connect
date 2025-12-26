@@ -896,9 +896,6 @@ impl Render for PostCommanderPage {
             .flex()
             .flex_col()
             .bg(rgb(background))
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
-                window.focus(&this.focus_handle, cx);
-            }))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" && event.keystroke.modifiers.platform {
                     this.execute_query(cx);
