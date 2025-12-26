@@ -8,7 +8,7 @@ use crate::theme::ActiveTheme;
 use super::fk_card::render_fk_card;
 use super::resize::render_resize_handle;
 use super::types::{
-    CellDoubleClicked, DataTableColumn, DataTableState, HEADER_HEIGHT, ROW_HEIGHT,
+    CellContextMenu, CellDoubleClicked, DataTableColumn, DataTableState, HEADER_HEIGHT, ROW_HEIGHT,
 };
 
 #[derive(IntoElement)]
@@ -292,6 +292,7 @@ fn render_visible_rows(
                         row_ix,
                         col_ix,
                         cell,
+                        row,
                         &col_widths_for_row,
                         row_height,
                         text,
@@ -312,6 +313,7 @@ fn render_cell(
     row_ix: usize,
     col_ix: usize,
     cell: &SharedString,
+    row: &[SharedString],
     col_widths: &[Pixels],
     row_height: Pixels,
     text: u32,
@@ -327,6 +329,9 @@ fn render_cell(
     let cell_value = cell.clone();
     let column_name = column_names.get(col_ix).cloned().unwrap_or_else(|| "".into());
     let state_for_cell = state.clone();
+    let state_for_context = state.clone();
+    let row_data = row.to_vec();
+    let column_names_vec: Vec<String> = column_names.iter().map(|s| s.to_string()).collect();
 
     let fk_info: Option<crate::postcommander::types::ForeignKeyInfo> = foreign_keys.get(column_name.as_ref()).cloned();
     let is_fk = fk_info.is_some();
@@ -367,6 +372,18 @@ fn render_cell(
                     }
                 }
             }
+        })
+        .on_mouse_down(MouseButton::Right, move |event, _window, cx| {
+            let position = event.position;
+            state_for_context.update(cx, |_, cx| {
+                cx.emit(CellContextMenu {
+                    row_index: row_ix,
+                    col_index: col_ix,
+                    column_names: column_names_vec.clone(),
+                    row_data: row_data.clone(),
+                    position,
+                });
+            });
         })
         .child(
             div()

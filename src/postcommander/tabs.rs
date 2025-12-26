@@ -54,6 +54,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub2);
         let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
         self._subscriptions.push(sub3);
+        let sub4 = cx.subscribe(&table_state, Self::handle_cell_context_menu);
+        self._subscriptions.push(sub4);
 
         let tab = QueryTab {
             id,
@@ -65,6 +67,8 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            query_start_time: None,
+            query_task: None,
             last_export_message: None,
             table_structures: vec![],
             structure_loading: false,
@@ -123,6 +127,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub2);
         let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
         self._subscriptions.push(sub3);
+        let sub4 = cx.subscribe(&table_state, Self::handle_cell_context_menu);
+        self._subscriptions.push(sub4);
 
         let tab = QueryTab {
             id,
@@ -134,6 +140,8 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            query_start_time: None,
+            query_task: None,
             last_export_message: None,
             table_structures: vec![],
             structure_loading: false,
@@ -194,6 +202,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub2);
         let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
         self._subscriptions.push(sub3);
+        let sub4 = cx.subscribe(&table_state, Self::handle_cell_context_menu);
+        self._subscriptions.push(sub4);
 
         let tab = QueryTab {
             id,
@@ -205,6 +215,8 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            query_start_time: None,
+            query_task: None,
             last_export_message: None,
             table_structures: vec![],
             structure_loading: false,
@@ -288,6 +300,8 @@ impl PostCommanderPage {
         self._subscriptions.push(sub2);
         let sub3 = cx.subscribe(&table_state, Self::handle_fk_data_request);
         self._subscriptions.push(sub3);
+        let sub4 = cx.subscribe(&table_state, Self::handle_cell_context_menu);
+        self._subscriptions.push(sub4);
 
         let tab = QueryTab {
             id,
@@ -299,6 +313,8 @@ impl PostCommanderPage {
             result: None,
             error: None,
             is_loading: false,
+            query_start_time: None,
+            query_task: None,
             last_export_message: None,
             table_structures: vec![],
             structure_loading: false,

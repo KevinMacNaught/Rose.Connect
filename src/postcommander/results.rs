@@ -27,6 +27,7 @@ impl PostCommanderPage {
 
         let editor = active_tab.map(|t| t.editor.clone());
         let is_loading = active_tab.map(|t| t.is_loading).unwrap_or(false);
+        let query_start_time = active_tab.and_then(|t| t.query_start_time);
 
         div()
             .flex_1()
@@ -44,7 +45,18 @@ impl PostCommanderPage {
                     .bg(rgb(panel_background))
                     .border_b_1()
                     .border_color(rgb(border_variant))
-                    .child(
+                    .child({
+                        let button_text = if is_loading {
+                            if let Some(start_time) = query_start_time {
+                                let elapsed = start_time.elapsed().as_secs_f64();
+                                format!("Running... ({:.1}s)", elapsed)
+                            } else {
+                                "Running...".to_string()
+                            }
+                        } else {
+                            "Execute".to_string()
+                        };
+
                         div()
                             .id("execute-btn")
                             .h(px(28.))
@@ -68,9 +80,29 @@ impl PostCommanderPage {
                                 div()
                                     .text_sm()
                                     .text_color(rgb(accent_foreground))
-                                    .child(if is_loading { "Running..." } else { "Execute" }),
-                            ),
-                    )
+                                    .child(button_text),
+                            )
+                    })
+                    .when(is_loading, |el| {
+                        el.child(
+                            div()
+                                .id("cancel-btn")
+                                .h(px(28.))
+                                .px_3()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .rounded_md()
+                                .bg(rgb(element))
+                                .cursor_pointer()
+                                .hover(move |s| s.bg(rgb(element_hover)))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.cancel_query(cx);
+                                }))
+                                .child(icon_sm("square", text_muted))
+                                .child(div().text_sm().text_color(rgb(text_muted)).child("Cancel")),
+                        )
+                    })
                     .child(
                         div()
                             .id("ai-btn")
@@ -250,6 +282,28 @@ impl PostCommanderPage {
                 )
             })
             .child(div().flex_1())
+            .child(
+                div()
+                    .id("save-query-toolbar-btn")
+                    .h(px(24.))
+                    .px_2()
+                    .flex()
+                    .items_center()
+                    .gap_1()
+                    .rounded_md()
+                    .cursor_pointer()
+                    .hover(move |s| s.bg(rgb(element_hover)))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.open_save_query_dialog(cx);
+                    }))
+                    .child(icon_sm("bookmark", text_muted))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(text_muted))
+                            .child("Save"),
+                    ),
+            )
             .when(has_result, |el| {
                 el.child(
                     div()

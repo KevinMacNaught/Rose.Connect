@@ -5,5 +5,5 @@ mod types;
 
 pub use render::DataTable;
 pub use types::{
-    CellDoubleClicked, CellSaveRequested, DataTableColumn, DataTableState, FkDataRequest,
+    CellContextMenu, CellDoubleClicked, CellSaveRequested, DataTableColumn, DataTableState, FkDataRequest,
 };

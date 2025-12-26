@@ -72,10 +72,45 @@ impl ConnectionDialogState {
     }
 }
 
+pub(crate) struct SaveQueryDialogState {
+    pub is_visible: bool,
+    pub input_name: Entity<TextInput>,
+    pub input_folder: Entity<TextInput>,
+    pub input_description: Entity<TextInput>,
+    pub editing_id: Option<String>,
+}
+
+impl SaveQueryDialogState {
+    pub fn new(
+        input_name: Entity<TextInput>,
+        input_folder: Entity<TextInput>,
+        input_description: Entity<TextInput>,
+    ) -> Self {
+        Self {
+            is_visible: false,
+            input_name,
+            input_folder,
+            input_description,
+            editing_id: None,
+        }
+    }
+}
+
+pub(crate) struct PendingCellContextMenu {
+    pub col_index: usize,
+    pub column_names: Vec<String>,
+    pub row_data: Vec<gpui::SharedString>,
+    pub position: Point<Pixels>,
+    pub table_name: Option<String>,
+}
+
 /// Active UI overlays (menus, dialogs, etc.)
 pub(crate) struct ActiveOverlays {
     pub context_menu: Option<(Entity<PopupMenu>, Point<Pixels>, String, Subscription)>,
     pub export_menu: Option<(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, Subscription)>,
+    pub cell_context_menu: Option<(Entity<gpui_component::menu::PopupMenu>, Point<Pixels>, Subscription)>,
+    pub pending_cell_context_menu: Option<PendingCellContextMenu>,
+    pub saved_query_menu: Option<(Entity<PopupMenu>, Point<Pixels>, String, Subscription)>,
 }
 
 impl Default for ActiveOverlays {
@@ -83,6 +118,9 @@ impl Default for ActiveOverlays {
         Self {
             context_menu: None,
             export_menu: None,
+            cell_context_menu: None,
+            pending_cell_context_menu: None,
+            saved_query_menu: None,
         }
     }
 }

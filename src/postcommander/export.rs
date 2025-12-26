@@ -89,6 +89,59 @@ impl PostCommanderPage {
     pub(crate) fn copy_to_clipboard(&self, content: String, cx: &mut Context<Self>) {
         cx.write_to_clipboard(ClipboardItem::new_string(content));
     }
+
+    pub(crate) fn copy_cell_value(value: &str, cx: &mut App) {
+        cx.write_to_clipboard(ClipboardItem::new_string(value.to_string()));
+    }
+
+    pub(crate) fn copy_row_as_tsv(_columns: &[String], row: &[SharedString], cx: &mut App) {
+        let tsv: Vec<String> = row.iter().map(|cell| {
+            let s = cell.as_ref();
+            if s.contains('\t') || s.contains('\n') || s.contains('\r') {
+                format!("\"{}\"", s.replace('"', "\"\""))
+            } else {
+                s.to_string()
+            }
+        }).collect();
+        cx.write_to_clipboard(ClipboardItem::new_string(tsv.join("\t")));
+    }
+
+    pub(crate) fn copy_row_as_json(columns: &[String], row: &[SharedString], cx: &mut App) {
+        let mut obj_parts: Vec<String> = Vec::new();
+        for (i, cell) in row.iter().enumerate() {
+            let key = columns.get(i).map(|s| s.as_str()).unwrap_or("");
+            let value = if cell.as_ref() == "NULL" {
+                "null".to_string()
+            } else {
+                format!("\"{}\"", escape_json(cell.as_ref()))
+            };
+            obj_parts.push(format!("\"{}\":{}", key, value));
+        }
+        let json = format!("{{{}}}", obj_parts.join(","));
+        cx.write_to_clipboard(ClipboardItem::new_string(json));
+    }
+
+    pub(crate) fn copy_row_as_insert(
+        table_name: Option<&str>,
+        columns: &[String],
+        row: &[SharedString],
+        cx: &mut App,
+    ) {
+        let table = table_name.unwrap_or("table_name");
+        let col_list = columns.join(", ");
+        let values: Vec<String> = row.iter().map(|cell| {
+            let s = cell.as_ref();
+            if s == "NULL" {
+                "NULL".to_string()
+            } else if s.parse::<i64>().is_ok() || s.parse::<f64>().is_ok() {
+                s.to_string()
+            } else {
+                format!("'{}'", s.replace('\'', "''"))
+            }
+        }).collect();
+        let sql = format!("INSERT INTO {} ({}) VALUES ({});", table, col_list, values.join(", "));
+        cx.write_to_clipboard(ClipboardItem::new_string(sql));
+    }
 }
 
 fn escape_csv(s: &str) -> String {

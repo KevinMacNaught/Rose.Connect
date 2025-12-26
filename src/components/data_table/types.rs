@@ -74,6 +74,15 @@ pub struct FkDataRequest {
 }
 
 #[derive(Clone)]
+pub struct CellContextMenu {
+    pub row_index: usize,
+    pub col_index: usize,
+    pub column_names: Vec<String>,
+    pub row_data: Vec<SharedString>,
+    pub position: Point<Pixels>,
+}
+
+#[derive(Clone)]
 pub struct FkHoverCardData {
     pub fk_info: ForeignKeyInfo,
     pub cell_value: SharedString,
@@ -282,3 +291,4 @@ impl DataTableState {
 impl EventEmitter<CellSaveRequested> for DataTableState {}
 impl EventEmitter<CellDoubleClicked> for DataTableState {}
 impl EventEmitter<FkDataRequest> for DataTableState {}
+impl EventEmitter<CellContextMenu> for DataTableState {}

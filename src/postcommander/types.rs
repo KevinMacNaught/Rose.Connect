@@ -1,9 +1,18 @@
 use crate::components::DataTableState;
 use crate::postcommander::database::QueryResult;
-use gpui::{Entity, SharedString};
+use gpui::{Entity, SharedString, Task};
 use gpui_component::input::InputState;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
+
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum SidebarTab {
+    #[default]
+    Schema,
+    History,
+    Saved,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TabId(u64);
@@ -80,7 +89,6 @@ pub struct CellEditState {
     pub error: Option<String>,
 }
 
-#[derive(Clone)]
 pub struct QueryTab {
     pub id: TabId,
     pub name: String,
@@ -91,6 +99,8 @@ pub struct QueryTab {
     pub result: Option<QueryResult>,
     pub error: Option<String>,
     pub is_loading: bool,
+    pub query_start_time: Option<Instant>,
+    pub query_task: Option<Task<()>>,
     pub last_export_message: Option<String>,
     pub table_structures: Vec<TableStructureInfo>,
     pub structure_loading: bool,

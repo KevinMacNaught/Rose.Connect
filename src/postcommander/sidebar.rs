@@ -1,6 +1,6 @@
 use crate::icons::{icon_md, icon_sm};
 use crate::postcommander::page::PostCommanderPage;
-use crate::postcommander::types::ConnectionState;
+use crate::postcommander::types::{ConnectionState, SidebarTab};
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
@@ -12,17 +12,13 @@ impl PostCommanderPage {
         let colors = theme.colors();
         let panel_background = colors.panel_background;
         let border_variant = colors.border_variant;
-        let surface = colors.surface;
         let text_muted = colors.text_muted;
-        let text_placeholder = colors.text_placeholder;
         let text = colors.text;
         let element_hover = colors.element_hover;
-        let accent = colors.accent;
         let status_success = colors.status_success;
         let status_warning = colors.status_warning;
         let status_error = colors.status_error;
 
-        let is_connected = matches!(self.connection_state, ConnectionState::Connected);
         let status_color = match &self.connection_state {
             ConnectionState::Connected => status_success,
             ConnectionState::Connecting => status_warning,
@@ -37,6 +33,136 @@ impl PostCommanderPage {
             ConnectionState::Error(_) => "Error".to_string(),
         };
 
+        div()
+            .w(px(self.resize.sidebar_width))
+            .h_full()
+            .flex()
+            .flex_col()
+            .bg(rgb(panel_background))
+            .border_r_1()
+            .border_color(rgb(border_variant))
+            .child(self.render_sidebar_tabs(cx, text, text_muted, element_hover, colors.accent))
+            .child(match self.current_sidebar_tab {
+                SidebarTab::Schema => self.render_schema_browser(cx).into_any_element(),
+                SidebarTab::History => self.render_query_history_panel(cx).into_any_element(),
+                SidebarTab::Saved => self.render_saved_queries_panel(cx).into_any_element(),
+            })
+            .child(self.render_sidebar_footer(border_variant, status_color, text_muted, status_text))
+    }
+
+    fn render_sidebar_tabs(
+        &self,
+        cx: &mut Context<Self>,
+        text: u32,
+        text_muted: u32,
+        element_hover: u32,
+        accent: u32,
+    ) -> impl IntoElement {
+        let current_tab = self.current_sidebar_tab;
+
+        div()
+            .flex()
+            .border_b_1()
+            .border_color(rgb(0x2d2d2d))
+            .child(
+                div()
+                    .id("sidebar-tab-schema")
+                    .flex_1()
+                    .px_3()
+                    .py_2()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap_2()
+                    .text_sm()
+                    .cursor_pointer()
+                    .when(current_tab == SidebarTab::Schema, |el| {
+                        el.border_b_2()
+                            .border_color(rgb(accent))
+                            .text_color(rgb(text))
+                    })
+                    .when(current_tab != SidebarTab::Schema, |el| {
+                        el.text_color(rgb(text_muted))
+                            .hover(move |s| s.bg(rgb(element_hover)))
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.current_sidebar_tab = SidebarTab::Schema;
+                        cx.notify();
+                    }))
+                    .child(icon_sm("database", if current_tab == SidebarTab::Schema { accent } else { text_muted }))
+                    .child("Schema"),
+            )
+            .child(
+                div()
+                    .id("sidebar-tab-history")
+                    .flex_1()
+                    .px_3()
+                    .py_2()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap_2()
+                    .text_sm()
+                    .cursor_pointer()
+                    .when(current_tab == SidebarTab::History, |el| {
+                        el.border_b_2()
+                            .border_color(rgb(accent))
+                            .text_color(rgb(text))
+                    })
+                    .when(current_tab != SidebarTab::History, |el| {
+                        el.text_color(rgb(text_muted))
+                            .hover(move |s| s.bg(rgb(element_hover)))
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.current_sidebar_tab = SidebarTab::History;
+                        cx.notify();
+                    }))
+                    .child(icon_sm("clock", if current_tab == SidebarTab::History { accent } else { text_muted }))
+                    .child("History"),
+            )
+            .child(
+                div()
+                    .id("sidebar-tab-saved")
+                    .flex_1()
+                    .px_3()
+                    .py_2()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap_2()
+                    .text_sm()
+                    .cursor_pointer()
+                    .when(current_tab == SidebarTab::Saved, |el| {
+                        el.border_b_2()
+                            .border_color(rgb(accent))
+                            .text_color(rgb(text))
+                    })
+                    .when(current_tab != SidebarTab::Saved, |el| {
+                        el.text_color(rgb(text_muted))
+                            .hover(move |s| s.bg(rgb(element_hover)))
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.current_sidebar_tab = SidebarTab::Saved;
+                        cx.notify();
+                    }))
+                    .child(icon_sm("bookmark", if current_tab == SidebarTab::Saved { accent } else { text_muted }))
+                    .child("Saved"),
+            )
+    }
+
+    fn render_schema_browser(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let colors = theme.colors();
+        let surface = colors.surface;
+        let border_variant = colors.border_variant;
+        let text_muted = colors.text_muted;
+        let text_placeholder = colors.text_placeholder;
+        let text = colors.text;
+        let element_hover = colors.element_hover;
+        let accent = colors.accent;
+        let status_success = colors.status_success;
+
+        let is_connected = matches!(self.connection_state, ConnectionState::Connected);
         let error_text = match &self.connection_state {
             ConnectionState::Connecting => "Connecting...".to_string(),
             ConnectionState::Error(e) => format!("Error: {}", e),
@@ -48,13 +174,11 @@ impl PostCommanderPage {
         let database = self.get_conn_database();
 
         div()
-            .w(px(self.resize.sidebar_width))
-            .h_full()
             .flex()
             .flex_col()
-            .bg(rgb(panel_background))
-            .border_r_1()
-            .border_color(rgb(border_variant))
+            .w_full()
+            .flex_1()
+            .min_h_0()
             .child(self.render_sidebar_header(surface, border_variant, text_muted, text_placeholder))
             .child(self.render_connect_button(cx, element_hover, accent, text, text_muted))
             .when(is_connected, |el| {
@@ -63,7 +187,6 @@ impl PostCommanderPage {
             .when(!is_connected, |el| {
                 el.child(self.render_disconnected_state(text_muted, error_text))
             })
-            .child(self.render_sidebar_footer(border_variant, status_color, text_muted, status_text))
     }
 
     fn render_sidebar_header(
@@ -535,6 +658,7 @@ impl PostCommanderPage {
                     .child(div().text_sm().text_color(rgb(text_muted)).child(error_text)),
             )
     }
+
 
     fn render_sidebar_footer(
         &self,

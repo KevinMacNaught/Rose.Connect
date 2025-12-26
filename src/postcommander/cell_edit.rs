@@ -1,4 +1,4 @@
-use crate::components::{CellDoubleClicked, CellSaveRequested, DataTableState};
+use crate::components::{CellContextMenu, CellDoubleClicked, CellSaveRequested, DataTableState};
 use crate::postcommander::page::PostCommanderPage;
 use crate::postcommander::types::CellEditState;
 use crate::theme::ActiveTheme;
@@ -389,5 +389,28 @@ impl PostCommanderPage {
                             ),
                     ),
             )
+    }
+
+    pub(crate) fn handle_cell_context_menu(
+        &mut self,
+        _table_state: Entity<DataTableState>,
+        event: &CellContextMenu,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::postcommander::state::PendingCellContextMenu;
+
+        let table_name = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .and_then(|tab| tab.table_context.as_ref())
+            .map(|ctx| ctx.table.clone());
+
+        self.overlays.pending_cell_context_menu = Some(PendingCellContextMenu {
+            col_index: event.col_index,
+            column_names: event.column_names.clone(),
+            row_data: event.row_data.clone(),
+            position: event.position,
+            table_name,
+        });
+        cx.notify();
     }
 }

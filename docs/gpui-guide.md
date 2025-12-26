@@ -215,6 +215,240 @@ Use `deferred()` to render modals on top of other content:
 - Backdrop needs `.id()` to be clickable
 - `when()` requires `use gpui::prelude::FluentBuilder`
 
+### CRITICAL: Nested deferred() Crash
+
+**NEVER nest `deferred()` calls** - this causes GPUI to panic with:
+```
+assertion `left == right` failed: cannot call defer_draw during deferred drawing
+  left: 1
+ right: 0
+```
+
+**Wrong - nested deferred():**
+```rust
+// In page.rs
+.when(show_save_dialog, |el| {
+    el.child(deferred(self.render_save_query_dialog(cx)).with_priority(3))
+})
+
+// In save_query_dialog.rs
+pub fn render_save_query_dialog(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    deferred(  // CRASH! Already inside deferred context
+        div()...
+    )
+}
+```
+
+**Correct - choose one location:**
+
+**Option 1: Caller wraps (recommended for most dialogs):**
+```rust
+// In page.rs
+.when(show_save_dialog, |el| {
+    el.child(deferred(self.render_save_query_dialog(cx)).with_priority(3))
+})
+
+// In save_query_dialog.rs
+pub fn render_save_query_dialog(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    div()  // No deferred() here
+        .absolute()
+        .inset_0()
+        // ... dialog content
+}
+```
+
+**Option 2: Render method wraps (for reusable components):**
+```rust
+// In page.rs
+.when(show_connection_dialog, |el| {
+    el.child(self.render_connection_dialog(cx))  // No deferred()
+})
+
+// In connection_dialog.rs
+pub fn render_connection_dialog(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    deferred(  // Deferred here instead
+        div()
+            .absolute()
+            .inset_0()
+            // ... dialog content
+    )
+    .with_priority(3)
+}
+```
+
+**Rule of thumb:**
+- Page-level dialogs: Caller wraps in `deferred()`
+- Reusable dialog components: Method returns `deferred()`
+- **NEVER both** - this causes instant crash
+
+See: `/Users/kevinmacnaught/Repos/Rose.Connect/src/postcommander/save_query_dialog.rs` (Option 1) vs `/Users/kevinmacnaught/Repos/Rose.Connect/src/postcommander/connection_dialog.rs` (Option 2)
+
+### Dialog State Management Pattern
+
+For complex dialogs with multiple inputs and edit modes, group state into a dedicated struct:
+
+```rust
+pub(crate) struct SaveQueryDialogState {
+    pub is_visible: bool,
+    pub input_name: Entity<TextInput>,
+    pub input_folder: Entity<TextInput>,
+    pub input_description: Entity<TextInput>,
+    pub editing_id: Option<String>,  // None = create mode, Some(id) = edit mode
+}
+
+impl SaveQueryDialogState {
+    pub fn new(
+        input_name: Entity<TextInput>,
+        input_folder: Entity<TextInput>,
+        input_description: Entity<TextInput>,
+    ) -> Self {
+        Self {
+            is_visible: false,
+            input_name,
+            input_folder,
+            input_description,
+            editing_id: None,
+        }
+    }
+}
+
+// In your page component
+pub struct PostCommanderPage {
+    save_query_dialog: SaveQueryDialogState,
+    // ... other fields
+}
+
+// Open dialog for creating new entry
+pub fn open_save_query_dialog(&mut self, cx: &mut Context<Self>) {
+    self.save_query_dialog.input_name.update(cx, |input, _| {
+        input.set_content(String::new());
+    });
+    self.save_query_dialog.input_folder.update(cx, |input, _| {
+        input.set_content(String::new());
+    });
+    self.save_query_dialog.editing_id = None;  // Create mode
+    self.save_query_dialog.is_visible = true;
+    cx.notify();
+}
+
+// Open dialog for editing existing entry
+pub fn edit_saved_query(&mut self, id: String, name: String, folder: Option<String>, cx: &mut Context<Self>) {
+    self.save_query_dialog.input_name.update(cx, |input, _| {
+        input.set_content(name);
+    });
+    self.save_query_dialog.input_folder.update(cx, |input, _| {
+        input.set_content(folder.unwrap_or_default());
+    });
+    self.save_query_dialog.editing_id = Some(id);  // Edit mode
+    self.save_query_dialog.is_visible = true;
+    cx.notify();
+}
+
+// Render with conditional behavior
+pub fn render_save_query_dialog(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    let is_editing = self.save_query_dialog.editing_id.is_some();
+    let title = if is_editing { "Edit Query" } else { "Save Query" };
+    let button_text = if is_editing { "Update" } else { "Save" };
+
+    div()
+        .child(title)
+        .child(self.save_query_dialog.input_name.clone())
+        // ... render form
+        .child(button_text)
+}
+```
+
+**Benefits:**
+- Clear separation of dialog state from page state
+- Single source of truth for dialog visibility and mode
+- Easy to pass to helper render methods
+- `editing_id: Option<String>` pattern supports create vs edit modes
+- All related state grouped for better cache locality
+
+**When to use:**
+- Dialogs with 3+ input fields
+- Dialogs with multiple modes (create/edit/view)
+- Dialogs that need to be opened from multiple places with different data
+
+See: `/Users/kevinmacnaught/Repos/Rose.Connect/src/postcommander/state.rs` for `SaveQueryDialogState` and `ConnectionDialogState` examples.
+
+## Multi-Tab State with Enums
+
+For UI with multiple tabs/modes, use an enum instead of multiple boolean flags:
+
+**Wrong - boolean flags:**
+```rust
+pub struct SidebarState {
+    show_schema: bool,
+    show_history: bool,
+    show_saved: bool,  // What if both are true? Invalid state possible!
+}
+```
+
+**Right - enum:**
+```rust
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum SidebarTab {
+    #[default]
+    Schema,
+    History,
+    Saved,
+}
+
+pub struct PostCommanderPage {
+    active_sidebar_tab: SidebarTab,
+    // ...
+}
+
+// Render tabs
+fn render_sidebar_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    let active = self.active_sidebar_tab;
+
+    div()
+        .flex()
+        .gap_1()
+        .child(self.render_tab_button("Schema", SidebarTab::Schema, active, cx))
+        .child(self.render_tab_button("History", SidebarTab::History, active, cx))
+        .child(self.render_tab_button("Saved", SidebarTab::Saved, active, cx))
+}
+
+fn render_tab_button(&self, label: &str, tab: SidebarTab, active: SidebarTab, cx: &mut Context<Self>) -> impl IntoElement {
+    let is_active = tab == active;
+
+    div()
+        .px_3()
+        .py_1()
+        .when(is_active, |el| el.bg(rgb(colors.accent)))
+        .on_click(cx.listener(move |this, _, _, cx| {
+            this.active_sidebar_tab = tab;
+            cx.notify();
+        }))
+        .child(label)
+}
+
+// Render content based on active tab
+fn render_sidebar_content(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    match self.active_sidebar_tab {
+        SidebarTab::Schema => self.render_schema_panel(cx),
+        SidebarTab::History => self.render_history_panel(cx),
+        SidebarTab::Saved => self.render_saved_panel(cx),
+    }
+}
+```
+
+**Benefits over boolean flags:**
+- **Type safety**: Impossible to have invalid state (multiple tabs "active" simultaneously)
+- **Exhaustive matching**: Compiler ensures all tabs are handled in `match`
+- **Single source of truth**: One field instead of N booleans
+- **Scalability**: Adding a 4th tab doesn't require new boolean + logic updates
+- **Pattern matching**: Natural fit for conditional rendering
+
+**When to use:**
+- Mutually exclusive UI states (tabs, modes, views)
+- When you find yourself with 2+ boolean flags that shouldn't both be true
+
+See: `/Users/kevinmacnaught/Repos/Rose.Connect/src/postcommander/types.rs` (`SidebarTab` enum) and `/Users/kevinmacnaught/Repos/Rose.Connect/src/postcommander/sidebar.rs` (usage in three-tab sidebar)
+
 ## Resizable Panels
 
 Use an overlay during drag to capture mouse events globally:

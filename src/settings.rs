@@ -20,6 +20,136 @@ pub struct ConnectionSettings {
     pub password: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum QueryHistoryStatus {
+    Success,
+    Error(String),
+    Cancelled,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryHistoryEntry {
+    pub sql: String,
+    pub timestamp: String,
+    pub execution_ms: Option<u64>,
+    pub status: QueryHistoryStatus,
+    pub database: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryHistorySettings {
+    pub entries: Vec<QueryHistoryEntry>,
+    pub max_entries: usize,
+}
+
+impl Default for QueryHistorySettings {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            max_entries: 100,
+        }
+    }
+}
+
+impl QueryHistorySettings {
+    pub fn add_entry(&mut self, entry: QueryHistoryEntry) {
+        self.entries.insert(0, entry);
+        if self.entries.len() > self.max_entries {
+            self.entries.truncate(self.max_entries);
+        }
+    }
+
+    pub fn search(&self, query: &str) -> Vec<&QueryHistoryEntry> {
+        let query_lower = query.to_lowercase();
+        self.entries
+            .iter()
+            .filter(|entry| entry.sql.to_lowercase().contains(&query_lower))
+            .collect()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SavedQueryEntry {
+    pub id: String,
+    pub name: String,
+    pub sql: String,
+    pub folder: Option<String>,
+    pub description: Option<String>,
+    pub created_at: String,
+    pub last_used: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SavedQueriesSettings {
+    pub entries: Vec<SavedQueryEntry>,
+    pub max_entries: usize,
+}
+
+impl Default for SavedQueriesSettings {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            max_entries: 500,
+        }
+    }
+}
+
+impl SavedQueriesSettings {
+    pub fn add_entry(&mut self, entry: SavedQueryEntry) {
+        self.entries.push(entry);
+        if self.entries.len() > self.max_entries {
+            self.entries.remove(0);
+        }
+    }
+
+    pub fn remove_entry(&mut self, id: &str) -> Option<SavedQueryEntry> {
+        if let Some(pos) = self.entries.iter().position(|e| e.id == id) {
+            Some(self.entries.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn update_entry(&mut self, id: &str, f: impl FnOnce(&mut SavedQueryEntry)) -> bool {
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+            f(entry);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_entry(&self, id: &str) -> Option<&SavedQueryEntry> {
+        self.entries.iter().find(|e| e.id == id)
+    }
+
+    pub fn search(&self, query: &str) -> Vec<&SavedQueryEntry> {
+        let query_lower = query.to_lowercase();
+        self.entries
+            .iter()
+            .filter(|e| {
+                e.name.to_lowercase().contains(&query_lower)
+                    || e.sql.to_lowercase().contains(&query_lower)
+                    || e.description
+                        .as_ref()
+                        .map(|d| d.to_lowercase().contains(&query_lower))
+                        .unwrap_or(false)
+            })
+            .collect()
+    }
+
+    pub fn get_folders(&self) -> Vec<String> {
+        let mut folders: Vec<String> = self
+            .entries
+            .iter()
+            .filter_map(|e| e.folder.clone())
+            .collect();
+        folders.sort();
+        folders.dedup();
+        folders
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PostCommanderSettings {
     #[serde(default)]
@@ -32,6 +162,10 @@ pub struct PostCommanderSettings {
     pub editor_height: Option<f32>,
     #[serde(default)]
     pub structure_panel_width: Option<f32>,
+    #[serde(default)]
+    pub query_history: Option<QueryHistorySettings>,
+    #[serde(default)]
+    pub saved_queries: Option<SavedQueriesSettings>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -113,6 +247,8 @@ impl AppSettings {
             sidebar_width: None,
             editor_height: None,
             structure_panel_width: None,
+            query_history: None,
+            saved_queries: None,
         };
         self.postcommander.as_ref().unwrap_or(&DEFAULT)
     }

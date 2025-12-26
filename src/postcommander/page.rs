@@ -1,8 +1,8 @@
 use crate::components::TextInput;
 use crate::postcommander::database::{ConnectionConfig, DatabaseManager};
 use crate::postcommander::sql::{SqlCompletionProvider, SqlDangerLevel};
-use crate::postcommander::state::{ActiveOverlays, ConnectionDialogState, ResizeState};
-use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, TabId, TableStructureInfo};
+use crate::postcommander::state::{ActiveOverlays, ConnectionDialogState, ResizeState, SaveQueryDialogState};
+use crate::postcommander::types::{CellEditState, ConnectionState, QueryTab, SchemaMap, SidebarTab, TabId, TableStructureInfo};
 use crate::settings::{AppSettings, ConnectionSettings};
 use crate::theme::ActiveTheme;
 use gpui::prelude::FluentBuilder;
@@ -32,6 +32,12 @@ pub struct PostCommanderPage {
     pub(crate) safety_warning: Option<(SqlDangerLevel, String)>,
     pub(crate) pending_capitalization: Option<(TabId, usize, usize, String)>,
     pub(crate) pending_undo_newline: Option<TabId>,
+    pub(crate) current_sidebar_tab: SidebarTab,
+    pub(crate) history_search_filter: String,
+    pub(crate) history_search_input: Entity<TextInput>,
+    pub(crate) saved_queries_search_filter: String,
+    pub(crate) saved_queries_search_input: Entity<TextInput>,
+    pub(crate) save_query_dialog: SaveQueryDialogState,
     cached_connection: ConnectionInfo,
 }
 
@@ -114,6 +120,34 @@ impl PostCommanderPage {
         let completion_schemas = completion_provider.schemas_ref();
         let completion_structures = completion_provider.table_structures_ref();
 
+        let page_entity = cx.entity();
+        let history_search_input = cx.new(|cx| {
+            let mut input = TextInput::new(cx, "Filter history...");
+            input.set_on_change(move |value, _, cx| {
+                let _ = page_entity.update(cx, |this, cx| {
+                    this.history_search_filter = value.to_string();
+                    cx.notify();
+                });
+            });
+            input
+        });
+
+        let page_entity_saved = cx.entity();
+        let saved_queries_search_input = cx.new(|cx| {
+            let mut input = TextInput::new(cx, "Filter saved queries...");
+            input.set_on_change(move |value, _, cx| {
+                let _ = page_entity_saved.update(cx, |this, cx| {
+                    this.saved_queries_search_filter = value.to_string();
+                    cx.notify();
+                });
+            });
+            input
+        });
+
+        let input_query_name = cx.new(|cx| TextInput::new(cx, "Query name"));
+        let input_query_folder = cx.new(|cx| TextInput::new(cx, "Folder (optional)"));
+        let input_query_description = cx.new(|cx| TextInput::new(cx, "Description (optional)"));
+
         Self {
             resize: ResizeState::new(
                 saved_sidebar_width.unwrap_or(240.0),
@@ -149,6 +183,16 @@ impl PostCommanderPage {
             safety_warning: None,
             pending_capitalization: None,
             pending_undo_newline: None,
+            current_sidebar_tab: SidebarTab::Schema,
+            history_search_filter: String::new(),
+            history_search_input,
+            saved_queries_search_filter: String::new(),
+            saved_queries_search_input,
+            save_query_dialog: SaveQueryDialogState::new(
+                input_query_name,
+                input_query_folder,
+                input_query_description,
+            ),
             cached_connection,
         }
     }
@@ -452,6 +496,225 @@ impl PostCommanderPage {
         cx.notify();
     }
 
+    pub(crate) fn deploy_cell_context_menu(
+        &mut self,
+        col_index: usize,
+        column_names: Vec<String>,
+        row_data: Vec<SharedString>,
+        position: Point<Pixels>,
+        table_name: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use gpui_component::menu::PopupMenuItem;
+
+        let cell_value = row_data.get(col_index).map(|s| s.to_string()).unwrap_or_default();
+        let col_names = column_names.clone();
+        let row_clone = row_data.clone();
+
+        let menu = gpui_component::menu::PopupMenu::build(window, cx, move |menu, _window, _cx| {
+            menu.item(
+                PopupMenuItem::new("Copy Cell").on_click({
+                    let value = cell_value.clone();
+                    move |_, _window, cx| {
+                        PostCommanderPage::copy_cell_value(&value, cx);
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy Row (TSV)").on_click({
+                    let cols = col_names.clone();
+                    let row = row_clone.clone();
+                    move |_, _window, cx| {
+                        PostCommanderPage::copy_row_as_tsv(&cols, &row, cx);
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy Row (JSON)").on_click({
+                    let cols = col_names.clone();
+                    let row = row_clone.clone();
+                    move |_, _window, cx| {
+                        PostCommanderPage::copy_row_as_json(&cols, &row, cx);
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Copy Row (INSERT)").on_click({
+                    let cols = col_names.clone();
+                    let row = row_clone.clone();
+                    let table = table_name.clone();
+                    move |_, _window, cx| {
+                        PostCommanderPage::copy_row_as_insert(
+                            table.as_deref(),
+                            &cols,
+                            &row,
+                            cx,
+                        );
+                    }
+                }),
+            )
+        });
+
+        let subscription = cx.subscribe(&menu, |this, _, _: &gpui::DismissEvent, cx| {
+            this.overlays.cell_context_menu = None;
+            cx.notify();
+        });
+
+        self.overlays.cell_context_menu = Some((menu, position, subscription));
+        cx.notify();
+    }
+
+    pub(crate) fn deploy_saved_query_context_menu(
+        &mut self,
+        entry_id: String,
+        entry_sql: String,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use gpui_component::menu::PopupMenuItem;
+
+        let entity_run = cx.entity().downgrade();
+        let entity_edit = cx.entity().downgrade();
+        let entity_delete = cx.entity().downgrade();
+
+        let sql_run = entry_sql.clone();
+        let sql_copy = entry_sql.clone();
+        let id_edit = entry_id.clone();
+        let id_delete = entry_id.clone();
+
+        let menu = PopupMenu::build(window, cx, move |menu, _window, _cx| {
+            menu.item(
+                PopupMenuItem::new("Run").on_click({
+                    let entity = entity_run.clone();
+                    let sql = sql_run.clone();
+                    move |_, window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.run_saved_query(&sql, window, cx);
+                            });
+                        }
+                    }
+                }),
+            )
+            .item(
+                PopupMenuItem::new("Edit").on_click({
+                    let entity = entity_edit.clone();
+                    let id = id_edit.clone();
+                    move |_, window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.edit_saved_query(&id, window, cx);
+                            });
+                        }
+                    }
+                }),
+            )
+            .separator()
+            .item(
+                PopupMenuItem::new("Copy SQL").on_click({
+                    let sql = sql_copy.clone();
+                    move |_, _window, cx| {
+                        cx.write_to_clipboard(ClipboardItem::new_string(sql.clone()));
+                    }
+                }),
+            )
+            .separator()
+            .item(
+                PopupMenuItem::new("Delete").on_click({
+                    let entity = entity_delete.clone();
+                    let id = id_delete.clone();
+                    move |_, _window, cx| {
+                        if let Some(page) = entity.upgrade() {
+                            page.update(cx, |page, cx| {
+                                page.delete_saved_query(&id, cx);
+                            });
+                        }
+                    }
+                }),
+            )
+        });
+
+        let subscription = cx.subscribe(&menu, |this, _, _: &DismissEvent, cx| {
+            this.overlays.saved_query_menu = None;
+            cx.notify();
+        });
+
+        self.overlays.saved_query_menu = Some((menu, position, entry_id, subscription));
+        cx.notify();
+    }
+
+    fn run_saved_query(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.iter().find(|t| Some(t.id) == self.active_tab_id) {
+            let sql_clone = sql.to_string();
+            tab.editor.update(cx, |editor, cx| {
+                editor.set_value(sql_clone, window, cx);
+            });
+        }
+
+        let sql_clone = sql.to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        AppSettings::update_global(cx, |settings| {
+            if let Some(saved) = settings.postcommander_mut().saved_queries.as_mut() {
+                for entry in &mut saved.entries {
+                    if entry.sql == sql_clone {
+                        entry.last_used = Some(now.clone());
+                        break;
+                    }
+                }
+            }
+        });
+        AppSettings::get_global(cx).save();
+
+        self.execute_query(cx);
+    }
+
+    fn edit_saved_query(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let settings = AppSettings::get_global(cx);
+        let entry_data = settings.postcommander().saved_queries.as_ref()
+            .and_then(|saved| saved.get_entry(id))
+            .map(|entry| (
+                entry.name.clone(),
+                entry.folder.clone().unwrap_or_default(),
+                entry.description.clone().unwrap_or_default(),
+                entry.sql.clone(),
+            ));
+
+        if let Some((name, folder, description, sql)) = entry_data {
+            self.save_query_dialog.input_name.update(cx, |input, _| {
+                input.set_content(name);
+            });
+            self.save_query_dialog.input_folder.update(cx, |input, _| {
+                input.set_content(folder);
+            });
+            self.save_query_dialog.input_description.update(cx, |input, _| {
+                input.set_content(description);
+            });
+
+            if let Some(tab) = self.tabs.iter().find(|t| Some(t.id) == self.active_tab_id) {
+                tab.editor.update(cx, |editor, cx| {
+                    editor.set_value(sql, window, cx);
+                });
+            }
+
+            self.save_query_dialog.editing_id = Some(id.to_string());
+            self.save_query_dialog.is_visible = true;
+            cx.notify();
+        }
+    }
+
+    fn delete_saved_query(&mut self, id: &str, cx: &mut Context<Self>) {
+        let id = id.to_string();
+        AppSettings::update_global(cx, |settings| {
+            if let Some(saved) = settings.postcommander_mut().saved_queries.as_mut() {
+                saved.remove_entry(&id);
+            }
+        });
+        AppSettings::get_global(cx).save();
+        cx.notify();
+    }
+
     pub(crate) fn toggle_node(&mut self, node_id: &str, cx: &mut Context<Self>) {
         if self.expanded_nodes.contains(node_id) {
             self.expanded_nodes.remove(node_id);
@@ -582,6 +845,7 @@ impl Render for PostCommanderPage {
         let is_resizing_structure = self.resize.is_resizing_structure;
         let show_cell_edit = self.cell_edit.is_some();
         let show_safety_warning = self.safety_warning.is_some();
+        let show_save_dialog = self.save_query_dialog.is_visible;
         let context_menu = self
             .overlays.context_menu
             .as_ref()
@@ -590,6 +854,26 @@ impl Render for PostCommanderPage {
             .overlays.export_menu
             .as_ref()
             .map(|(menu, pos, _)| (menu.clone(), *pos));
+        let cell_context_menu = self
+            .overlays.cell_context_menu
+            .as_ref()
+            .map(|(menu, pos, _)| (menu.clone(), *pos));
+        let saved_query_menu = self
+            .overlays.saved_query_menu
+            .as_ref()
+            .map(|(menu, pos, _, _)| (menu.clone(), *pos));
+
+        if let Some(pending) = self.overlays.pending_cell_context_menu.take() {
+            self.deploy_cell_context_menu(
+                pending.col_index,
+                pending.column_names,
+                pending.row_data,
+                pending.position,
+                pending.table_name,
+                window,
+                cx,
+            );
+        }
 
         div()
             .id("postcommander-page")
@@ -597,9 +881,23 @@ impl Render for PostCommanderPage {
             .flex()
             .flex_col()
             .bg(rgb(background))
-            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" && event.keystroke.modifiers.platform {
                     this.execute_query(cx);
+                } else if event.keystroke.key == "e"
+                    && event.keystroke.modifiers.platform
+                    && event.keystroke.modifiers.shift {
+                    this.explain_query(window, cx);
+                } else if event.keystroke.key == "a"
+                    && event.keystroke.modifiers.platform
+                    && event.keystroke.modifiers.shift {
+                    this.explain_analyze_query(window, cx);
+                } else if event.keystroke.key == "/" && event.keystroke.modifiers.platform {
+                    this.toggle_comment(window, cx);
+                } else if event.keystroke.key == "f"
+                    && event.keystroke.modifiers.platform
+                    && event.keystroke.modifiers.shift {
+                    this.format_query(window, cx);
                 }
             }))
             .child(
@@ -678,8 +976,51 @@ impl Render for PostCommanderPage {
                     .with_priority(1),
                 )
             })
+            .when_some(cell_context_menu, |el, (menu, position)| {
+                let window_size = window.bounds().size;
+                el.child(
+                    deferred(
+                        anchored().child(
+                            div()
+                                .w(window_size.width)
+                                .h(window_size.height)
+                                .occlude()
+                                .child(
+                                    anchored()
+                                        .position(position)
+                                        .anchor(Corner::TopLeft)
+                                        .child(menu),
+                                ),
+                        ),
+                    )
+                    .with_priority(1),
+                )
+            })
+            .when_some(saved_query_menu, |el, (menu, position)| {
+                let window_size = window.bounds().size;
+                el.child(
+                    deferred(
+                        anchored().child(
+                            div()
+                                .w(window_size.width)
+                                .h(window_size.height)
+                                .occlude()
+                                .child(
+                                    anchored()
+                                        .position(position)
+                                        .anchor(Corner::TopLeft)
+                                        .child(menu),
+                                ),
+                        ),
+                    )
+                    .with_priority(1),
+                )
+            })
             .when(show_safety_warning, |el| {
                 el.child(deferred(self.render_safety_warning_dialog(cx)).with_priority(3))
+            })
+            .when(show_save_dialog, |el| {
+                el.child(deferred(self.render_save_query_dialog(cx)).with_priority(3))
             })
     }
 }
