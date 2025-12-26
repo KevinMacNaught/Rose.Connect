@@ -314,8 +314,9 @@ impl SettingsWindow {
         let dropdown_menu = div()
             .absolute()
             .top(px(32.))
-            .left_0()
+            .right_0()
             .min_w(px(200.))
+            .max_h(px(300.))
             .bg(rgb(elevated_surface))
             .border_1()
             .border_color(rgb(border_color))
@@ -324,9 +325,13 @@ impl SettingsWindow {
             .overflow_hidden()
             .child(
                 div()
+                    .id("theme-dropdown-list")
                     .flex()
                     .flex_col()
                     .py(px(4.))
+                    .min_h_0()
+                    .max_h(px(292.))
+                    .overflow_y_scroll()
                     .children(
                         self.themes
                             .iter()

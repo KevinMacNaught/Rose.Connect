@@ -36,6 +36,18 @@ impl ThemeRegistry {
         self.insert_theme(builtin::ayu_mirage());
         self.insert_theme(builtin::gruvbox_dark());
         self.insert_theme(builtin::gruvbox_light());
+        self.insert_theme(builtin::coffee());
+        self.insert_theme(builtin::sky());
+        self.insert_theme(builtin::rose_dark());
+        self.insert_theme(builtin::rose_light());
+        self.insert_theme(builtin::nord());
+        self.insert_theme(builtin::dracula());
+        self.insert_theme(builtin::solarized_dark());
+        self.insert_theme(builtin::solarized_light());
+        self.insert_theme(builtin::tokyo_night());
+        self.insert_theme(builtin::everforest());
+        self.insert_theme(builtin::midnight());
+        self.insert_theme(builtin::high_contrast());
     }
 
     pub fn insert_theme(&mut self, theme: Theme) {
