@@ -85,10 +85,45 @@ impl PostCommanderPage {
     }
 
     pub(crate) fn query_table(&mut self, schema: &str, table: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let schema = schema.to_string();
+        let table = table.to_string();
+        let pk_rx = self.db_manager.fetch_primary_keys(schema.clone(), table.clone());
+
+        cx.spawn_in(window, async move |this, cx| {
+            let primary_keys = match pk_rx.await {
+                Ok(Ok(pks)) => pks,
+                _ => vec![],
+            };
+
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.query_table_with_pks(&schema, &table, primary_keys, window, cx);
+            });
+        })
+        .detach();
+    }
+
+    fn query_table_with_pks(
+        &mut self,
+        schema: &str,
+        table: &str,
+        primary_keys: Vec<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let id = TabId::new();
         let tab_id = id;
         let database = self.get_conn_database().to_string();
-        let sql = format!("SELECT * FROM \"{}\".\"{}\" LIMIT 100;", schema, table);
+
+        let order_by = if primary_keys.is_empty() {
+            String::new()
+        } else {
+            let pk_cols: Vec<String> = primary_keys.iter().map(|pk| format!("\"{}\" DESC", pk)).collect();
+            format!(" ORDER BY {}", pk_cols.join(", "))
+        };
+        let sql = format!(
+            "SELECT * FROM \"{}\".\"{}\"{} LIMIT 100;",
+            schema, table, order_by
+        );
         let cursor_pos = sql.len() as u32;
 
         let editor = cx.new(|cx| {

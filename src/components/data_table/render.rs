@@ -1,5 +1,6 @@
 use gpui::prelude::FluentBuilder;
 use gpui::*;
+use gpui_component::checkbox::Checkbox;
 use std::sync::Arc;
 
 use crate::icons::icon_sm;
@@ -8,7 +9,8 @@ use crate::theme::ActiveTheme;
 use super::fk_card::render_fk_card;
 use super::resize::render_resize_handle;
 use super::types::{
-    CellContextMenu, CellDoubleClicked, DataTableColumn, DataTableState, HEADER_HEIGHT, ROW_HEIGHT,
+    CellContextMenu, CellDoubleClicked, CellSaveRequested, DataTableColumn, DataTableState,
+    HEADER_HEIGHT, ROW_HEIGHT,
 };
 
 #[derive(IntoElement)]
@@ -71,6 +73,8 @@ impl RenderOnce for DataTable {
         let cell_hover_bg = colors.element_selected;
 
         let column_names: Vec<SharedString> = columns.iter().map(|c| c.name.clone()).collect();
+        let column_types: Vec<Option<SharedString>> =
+            columns.iter().map(|c| c.type_name.clone()).collect();
 
         let foreign_keys = state
             .table_context
@@ -96,6 +100,7 @@ impl RenderOnce for DataTable {
             row_hover_bg,
             cell_hover_bg,
             column_names,
+            column_types,
             foreign_keys,
             self.state.clone(),
         );
@@ -261,6 +266,7 @@ fn render_visible_rows(
     row_hover_bg: u32,
     cell_hover_bg: u32,
     column_names: Vec<SharedString>,
+    column_types: Vec<Option<SharedString>>,
     foreign_keys: Arc<std::collections::HashMap<String, crate::postcommander::types::ForeignKeyInfo>>,
     state: Entity<DataTableState>,
 ) -> Vec<Stateful<Div>> {
@@ -271,6 +277,7 @@ fn render_visible_rows(
             let row_y = header_height + row_height * row_ix as f32 - scroll_offset.y;
             let state_for_row = state.clone();
             let column_names_for_row = column_names.clone();
+            let column_types_for_row = column_types.clone();
             let foreign_keys_for_row = foreign_keys.clone();
             let col_widths_for_row = col_widths.to_vec();
 
@@ -288,6 +295,9 @@ fn render_visible_rows(
                 .border_b_1()
                 .border_color(rgb(border_variant))
                 .children(row.iter().enumerate().map(move |(col_ix, cell)| {
+                    let column_type = column_types_for_row
+                        .get(col_ix)
+                        .and_then(|t| t.clone());
                     render_cell(
                         row_ix,
                         col_ix,
@@ -300,12 +310,23 @@ fn render_visible_rows(
                         accent,
                         cell_hover_bg,
                         &column_names_for_row,
+                        column_type,
                         &foreign_keys_for_row,
                         &state_for_row,
                     )
                 }))
         })
         .collect()
+}
+
+fn is_boolean_type(type_name: &Option<SharedString>) -> bool {
+    type_name
+        .as_ref()
+        .map(|t| {
+            let t = t.to_lowercase();
+            t == "bool" || t == "boolean"
+        })
+        .unwrap_or(false)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -321,9 +342,10 @@ fn render_cell(
     accent: u32,
     cell_hover_bg: u32,
     column_names: &[SharedString],
+    column_type: Option<SharedString>,
     foreign_keys: &Arc<std::collections::HashMap<String, crate::postcommander::types::ForeignKeyInfo>>,
     state: &Entity<DataTableState>,
-) -> Stateful<Div> {
+) -> impl IntoElement {
     let is_null = cell.as_ref() == "NULL";
     let width = col_widths.get(col_ix).copied().unwrap_or(px(150.));
     let cell_value = cell.clone();
@@ -333,8 +355,58 @@ fn render_cell(
     let row_data = row.to_vec();
     let column_names_vec: Vec<String> = column_names.iter().map(|s| s.to_string()).collect();
 
-    let fk_info: Option<crate::postcommander::types::ForeignKeyInfo> = foreign_keys.get(column_name.as_ref()).cloned();
+    let fk_info: Option<crate::postcommander::types::ForeignKeyInfo> =
+        foreign_keys.get(column_name.as_ref()).cloned();
     let is_fk = fk_info.is_some();
+    let is_bool = is_boolean_type(&column_type);
+
+    let cell_content: AnyElement = if is_bool && !is_null {
+        let is_checked = cell.to_lowercase() == "true" || cell.as_ref() == "t";
+        let state_for_checkbox = state.clone();
+        Checkbox::new(ElementId::Integer((row_ix as u64) << 32 | (col_ix as u64) | 0x8000_0000))
+            .checked(is_checked)
+            .on_click(move |new_checked: &bool, _window, cx| {
+                let new_value = if *new_checked { "true" } else { "false" };
+                state_for_checkbox.update(cx, |_, cx| {
+                    cx.emit(CellSaveRequested {
+                        row_index: row_ix,
+                        col_index: col_ix,
+                        new_value: new_value.to_string(),
+                    });
+                });
+            })
+            .into_any_element()
+    } else {
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .overflow_hidden()
+            .child(
+                div()
+                    .text_sm()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .text_color(rgb(if is_null {
+                        text_muted
+                    } else if is_fk {
+                        accent
+                    } else {
+                        text
+                    }))
+                    .when(is_null, |el| el.italic())
+                    .child(if is_null {
+                        SharedString::from("—")
+                    } else {
+                        cell.clone()
+                    }),
+            )
+            .when(is_fk && !is_null, |el| {
+                el.child(icon_sm("external-link", accent))
+            })
+            .into_any_element()
+    };
 
     div()
         .id(ElementId::Integer((row_ix as u64) << 32 | (col_ix as u64)))
@@ -347,31 +419,37 @@ fn render_cell(
         .overflow_hidden()
         .cursor_pointer()
         .hover(|s| s.bg(rgb(cell_hover_bg)))
-        .on_click(move |event, _window, cx| {
-            if event.click_count() == 2 {
-                state_for_cell.update(cx, |_, cx| {
-                    cx.emit(CellDoubleClicked {
-                        row_index: row_ix,
-                        col_index: col_ix,
-                        column_name: column_name.clone(),
-                        current_value: cell_value.clone(),
-                    });
-                });
-            } else if event.click_count() == 1 {
-                if let Some(ref fk) = fk_info {
-                    if !is_null {
-                        state_for_cell.update(cx, |state, cx| {
-                            state.show_fk_card(
-                                row_ix,
-                                col_ix,
-                                cell_value.clone(),
-                                fk.clone(),
-                                cx,
-                            );
+        .when(!is_bool, |el| {
+            let state_for_click = state_for_cell.clone();
+            let cell_value_click = cell_value.clone();
+            let column_name_click = column_name.clone();
+            let fk_info_click = fk_info.clone();
+            el.on_click(move |event, _window, cx| {
+                if event.click_count() == 2 {
+                    state_for_click.update(cx, |_, cx| {
+                        cx.emit(CellDoubleClicked {
+                            row_index: row_ix,
+                            col_index: col_ix,
+                            column_name: column_name_click.clone(),
+                            current_value: cell_value_click.clone(),
                         });
+                    });
+                } else if event.click_count() == 1 {
+                    if let Some(ref fk) = fk_info_click {
+                        if !is_null {
+                            state_for_click.update(cx, |state, cx| {
+                                state.show_fk_card(
+                                    row_ix,
+                                    col_ix,
+                                    cell_value_click.clone(),
+                                    fk.clone(),
+                                    cx,
+                                );
+                            });
+                        }
                     }
                 }
-            }
+            })
         })
         .on_mouse_down(MouseButton::Right, move |event, _window, cx| {
             let position = event.position;
@@ -385,30 +463,5 @@ fn render_cell(
                 });
             });
         })
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap_1()
-                .overflow_hidden()
-                .child(
-                    div()
-                        .text_sm()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .text_ellipsis()
-                        .text_color(rgb(if is_null {
-                            text_muted
-                        } else if is_fk {
-                            accent
-                        } else {
-                            text
-                        }))
-                        .when(is_null, |el| el.italic())
-                        .child(if is_null { SharedString::from("—") } else { cell.clone() }),
-                )
-                .when(is_fk && !is_null, |el| {
-                    el.child(icon_sm("external-link", accent))
-                }),
-        )
+        .child(cell_content)
 }
