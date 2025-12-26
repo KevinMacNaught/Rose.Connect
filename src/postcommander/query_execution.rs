@@ -457,4 +457,19 @@ impl PostCommanderPage {
             editor.set_value(formatted, window, cx);
         });
     }
+
+    pub(crate) fn show_ai_assistant_placeholder(&mut self, cx: &mut Context<Self>) {
+        let task = cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_secs(3))
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                this.temporary_message = None;
+                cx.notify();
+            });
+        });
+
+        self.temporary_message = Some(("AI SQL Assistant coming soon".to_string(), task));
+        cx.notify();
+    }
 }

@@ -148,7 +148,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 ### Toolbar
 - [x] ✅ Execute button (Run/Running state)
 - [x] ✅ AI button (placeholder, no functionality)
-- [ ] ⬜ Save button (⌘S)
+- [x] ✅ Save button (⌘S) - Keyboard shortcut works, saves to Downloads
 - [ ] ⬜ Structure panel toggle button
 
 ### Editor Enhancements
@@ -200,7 +200,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [x] ✅ "Ready to query" / "Connect to database" message
 - [x] ✅ "New Query" / "Connect" button
 - [ ] ⬜ "or drag and drop a .sql file here" hint
-- [ ] ⬜ Quick tips section (⌘K AI, ⌘O open, ⌘↵ run)
+- [x] ✅ Quick tips section (⌘T new, ⌘O open, ⌘↵ run)
 
 ---
 
@@ -374,7 +374,7 @@ This document tracks the implementation status of all PostCommander features. Ch
 - [x] ✅ Host:port when connected
 - [x] ✅ Database name when connected
 - [x] ✅ Version number
-- [ ] ⬜ Keyboard shortcuts hints (⌘K AI, ⌘O open, ⌘↵ run)
+- [x] ✅ Keyboard shortcuts hints (⌘T new, ⌘O open, ⌘↵ run)
 
 ---
 
@@ -399,15 +399,15 @@ This document tracks the implementation status of all PostCommander features. Ch
 ### Global
 | Shortcut | Action | Status |
 |----------|--------|--------|
-| ⌘O | Open SQL file | ⬜ |
+| ⌘O | Open SQL file | ✅ |
 | Escape | Close AI assistant / Cancel edit | 🔶 (edit only) |
 
 ### Query Editor
 | Shortcut | Action | Status |
 |----------|--------|--------|
 | ⌘↵ | Execute query | ✅ |
-| ⌘K | Open AI SQL Assistant | ⬜ |
-| ⌘S | Save query to file | ⬜ |
+| ⌘K | Open AI SQL Assistant | 🔶 (placeholder) |
+| ⌘S | Save query to file | ✅ |
 
 ### AI Assistant
 | Shortcut | Action | Status |

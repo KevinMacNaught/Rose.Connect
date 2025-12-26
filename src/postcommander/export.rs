@@ -251,6 +251,26 @@ impl PostCommanderPage {
         Ok(message)
     }
 
+    pub(crate) fn save_query_to_file(&mut self, cx: &mut Context<Self>) -> Result<String, String> {
+        let tab = self.active_tab_id.as_ref()
+            .and_then(|id| self.tabs.iter().find(|t| &t.id == id))
+            .ok_or_else(|| "No active tab".to_string())?;
+
+        let query_content = tab.editor.read(cx).value().to_string();
+
+        if query_content.trim().is_empty() {
+            return Err("Query is empty".to_string());
+        }
+
+        let tab_name = tab.name.as_str();
+        let filename = generate_filename(tab_name, "sql");
+        let path = save_to_file(&query_content, &filename)?;
+
+        let message = format!("Saved to {}", path.display());
+        self.set_export_message(&message, cx);
+        Ok(message)
+    }
+
     fn set_export_message(&mut self, message: &str, cx: &mut Context<Self>) {
         if let Some(tab_id) = &self.active_tab_id {
             if let Some(tab) = self.tabs.iter_mut().find(|t| &t.id == tab_id) {
@@ -258,5 +278,36 @@ impl PostCommanderPage {
                 cx.notify();
             }
         }
+    }
+
+    pub(crate) fn open_sql_file(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        let options = PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Open SQL File".into()),
+        };
+
+        let receiver = cx.prompt_for_paths(options);
+
+        cx.spawn(async move |this, cx| {
+            if let Ok(Ok(Some(paths))) = receiver.await {
+                if let Some(path) = paths.first() {
+                    if let Ok(content) = fs::read_to_string(path) {
+                        let filename = path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("Untitled.sql")
+                            .to_string();
+
+                        let _ = this.update(cx, |this, cx| {
+                            this.pending_file_open = Some((filename, content));
+                            cx.notify();
+                        });
+                    }
+                }
+            }
+        })
+        .detach();
     }
 }

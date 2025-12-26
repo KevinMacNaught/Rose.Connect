@@ -100,4 +100,39 @@ impl PostCommanderPage {
             )
             .into_any_element()
     }
+
+    pub(crate) fn render_temporary_message(&self, message: &str, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let colors = theme.colors();
+        let message_text = message.to_string();
+
+        div()
+            .id("temporary-message-overlay")
+            .absolute()
+            .top(px(16.0))
+            .right(px(16.0))
+            .child(
+                div()
+                    .px_4()
+                    .py_3()
+                    .bg(rgb(colors.surface))
+                    .border_1()
+                    .border_color(rgb(colors.border))
+                    .rounded_lg()
+                    .shadow_lg()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        crate::icons::icon_sm("info", colors.accent)
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .text_color(rgb(colors.text))
+                            .child(message_text)
+                    )
+            )
+            .into_any_element()
+    }
 }

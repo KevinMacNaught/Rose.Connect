@@ -14,6 +14,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 pub struct PostCommanderPage {
+    focus_handle: FocusHandle,
     pub(crate) resize: ResizeState,
     pub(crate) connection_dialog: ConnectionDialogState,
     pub(crate) overlays: ActiveOverlays,
@@ -39,6 +40,8 @@ pub struct PostCommanderPage {
     pub(crate) saved_queries_search_input: Entity<TextInput>,
     pub(crate) save_query_dialog: SaveQueryDialogState,
     cached_connection: ConnectionInfo,
+    pub(crate) temporary_message: Option<(String, Task<()>)>,
+    pub(crate) pending_file_open: Option<(String, String)>,
 }
 
 #[derive(Default, Clone)]
@@ -149,6 +152,7 @@ impl PostCommanderPage {
         let input_query_description = cx.new(|cx| TextInput::new(cx, "Description (optional)"));
 
         Self {
+            focus_handle: cx.focus_handle(),
             resize: ResizeState::new(
                 saved_sidebar_width.unwrap_or(240.0),
                 saved_editor_height.unwrap_or(200.0),
@@ -194,6 +198,8 @@ impl PostCommanderPage {
                 input_query_description,
             ),
             cached_connection,
+            temporary_message: None,
+            pending_file_open: None,
         }
     }
 
@@ -834,6 +840,14 @@ impl Render for PostCommanderPage {
             }
         }
 
+        if let Some((filename, content)) = self.pending_file_open.take() {
+            self.create_tab_from_file(filename, content, window, cx);
+        }
+
+        if self.tabs.is_empty() && !self.focus_handle.is_focused(window) {
+            window.focus(&self.focus_handle, cx);
+        }
+
         let theme = cx.theme();
         let colors = theme.colors();
         let background = colors.background;
@@ -877,10 +891,14 @@ impl Render for PostCommanderPage {
 
         div()
             .id("postcommander-page")
+            .track_focus(&self.focus_handle)
             .size_full()
             .flex()
             .flex_col()
             .bg(rgb(background))
+            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, window, cx| {
+                window.focus(&this.focus_handle, cx);
+            }))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "enter" && event.keystroke.modifiers.platform {
                     this.execute_query(cx);
@@ -898,6 +916,14 @@ impl Render for PostCommanderPage {
                     && event.keystroke.modifiers.platform
                     && event.keystroke.modifiers.shift {
                     this.format_query(window, cx);
+                } else if event.keystroke.key == "k" && event.keystroke.modifiers.platform {
+                    this.show_ai_assistant_placeholder(cx);
+                } else if event.keystroke.key == "s" && event.keystroke.modifiers.platform {
+                    let _ = this.save_query_to_file(cx);
+                } else if event.keystroke.key == "o" && event.keystroke.modifiers.platform {
+                    this.open_sql_file(window, cx);
+                } else if event.keystroke.key == "t" && event.keystroke.modifiers.platform {
+                    this.add_tab(window, cx);
                 }
             }))
             .child(
@@ -1021,6 +1047,9 @@ impl Render for PostCommanderPage {
             })
             .when(show_save_dialog, |el| {
                 el.child(deferred(self.render_save_query_dialog(cx)).with_priority(3))
+            })
+            .when_some(self.temporary_message.as_ref().map(|(msg, _)| msg.clone()), |el, msg| {
+                el.child(deferred(self.render_temporary_message(&msg, cx)).with_priority(4))
             })
     }
 }

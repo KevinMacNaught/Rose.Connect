@@ -567,6 +567,35 @@ impl PostCommanderPage {
                                         ),
                                 ),
                         )
+                    })
+                    .when(is_connected, |el| {
+                        el.child(
+                            div()
+                                .mt_8()
+                                .pt_6()
+                                .border_t_1()
+                                .border_color(rgb(colors.border))
+                                .flex()
+                                .flex_col()
+                                .gap_2()
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .text_color(rgb(text_muted))
+                                        .child("Quick tips:"),
+                                )
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap_4()
+                                        .text_xs()
+                                        .text_color(rgb(text_muted))
+                                        .child("⌘T new")
+                                        .child("⌘O open")
+                                        .child("⌘↵ run"),
+                                ),
+                        )
                     }),
             )
     }
