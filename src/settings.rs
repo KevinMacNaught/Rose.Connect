@@ -11,13 +11,41 @@ pub struct WindowBoundsSettings {
     pub height: f32,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConnectionSettings {
     pub host: String,
     pub port: String,
     pub database: String,
     pub username: String,
     pub password: String,
+}
+
+impl Default for ConnectionSettings {
+    fn default() -> Self {
+        Self {
+            host: String::new(),
+            port: "5432".into(),
+            database: String::new(),
+            username: String::new(),
+            password: String::new(),
+        }
+    }
+}
+
+impl ConnectionSettings {
+    pub fn defaults() -> Self {
+        #[cfg(debug_assertions)]
+        return Self {
+            host: "localhost".into(),
+            port: "5432".into(),
+            database: "postgres".into(),
+            username: "postgres".into(),
+            password: String::new(),
+        };
+
+        #[cfg(not(debug_assertions))]
+        return Self::default();
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

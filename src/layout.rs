@@ -180,6 +180,12 @@ impl MainLayout {
         let text_muted = colors.text_muted;
         let border_variant = colors.border_variant;
 
+        let version = env!("CARGO_PKG_VERSION");
+        #[cfg(debug_assertions)]
+        let version_string = format!("v{} (dev)", version);
+        #[cfg(not(debug_assertions))]
+        let version_string = format!("v{}", version);
+
         div()
             .h(px(FOOTER_HEIGHT))
             .w_full()
@@ -194,7 +200,7 @@ impl MainLayout {
                 div()
                     .text_xs()
                     .text_color(rgb(text_muted))
-                    .child("Ready"),
+                    .child(version_string),
             )
             .child(
                 div()

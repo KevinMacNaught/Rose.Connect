@@ -62,50 +62,44 @@ impl PostCommanderPage {
         let saved_sidebar_width = pc_settings.sidebar_width;
         let saved_editor_height = pc_settings.editor_height;
         let saved_structure_panel_width = pc_settings.structure_panel_width;
-        let conn = saved_conn.clone().unwrap_or_default();
-
-        let host_val = if conn.host.is_empty() { "localhost".to_string() } else { conn.host };
-        let port_val = if conn.port.is_empty() { "5432".to_string() } else { conn.port };
-        let database_val = if conn.database.is_empty() { "postgres".to_string() } else { conn.database };
-        let username_val = if conn.username.is_empty() { "postgres".to_string() } else { conn.username };
-        let password_val = conn.password;
+        let conn = saved_conn.clone().unwrap_or_else(ConnectionSettings::defaults);
 
         let has_saved_connection = saved_conn.is_some()
-            && !host_val.is_empty()
-            && !database_val.is_empty()
-            && !username_val.is_empty();
+            && !conn.host.is_empty()
+            && !conn.database.is_empty()
+            && !conn.username.is_empty();
 
         let cached_connection = ConnectionInfo {
-            host: host_val.clone(),
-            port: port_val.clone(),
-            database: database_val.clone(),
-            username: username_val.clone(),
-            password: password_val.clone(),
+            host: conn.host.clone(),
+            port: conn.port.clone(),
+            database: conn.database.clone(),
+            username: conn.username.clone(),
+            password: conn.password.clone(),
         };
 
         let input_host = cx.new(|cx| {
             let mut input = TextInput::new(cx, "localhost");
-            input.set_content(host_val);
+            input.set_content(conn.host.clone());
             input
         });
         let input_port = cx.new(|cx| {
             let mut input = TextInput::new(cx, "5432");
-            input.set_content(port_val);
+            input.set_content(conn.port.clone());
             input
         });
         let input_database = cx.new(|cx| {
             let mut input = TextInput::new(cx, "database");
-            input.set_content(database_val);
+            input.set_content(conn.database.clone());
             input
         });
         let input_username = cx.new(|cx| {
             let mut input = TextInput::new(cx, "username");
-            input.set_content(username_val);
+            input.set_content(conn.username.clone());
             input
         });
         let input_password = cx.new(|cx| {
             let mut input = TextInput::new(cx, "password");
-            input.set_content(password_val);
+            input.set_content(conn.password.clone());
             input.set_masked(true);
             input
         });
